@@ -11,7 +11,7 @@ from pathlib import Path
 class HTMLReporter:
     """Génère un rapport HTML complet de l'analyse"""
     
-    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str):
+    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None):
         """
         Initialise le générateur de rapport
         
@@ -20,11 +20,13 @@ class HTMLReporter:
             metrics: Dictionnaire des métriques calculées
             graph_info: Informations sur le graphe
             project_name: Nom du projet analysé
+            external_deps: Ensemble des dépendances externes
         """
         self.graph = graph
         self.metrics = metrics
         self.graph_info = graph_info
         self.project_name = project_name
+        self.external_deps = external_deps or set()
     
     def generate_report(self, output_file: str = "report.html", 
                        img_simple: str = "output_graph_simple.png",
@@ -195,10 +197,21 @@ class HTMLReporter:
         table td {{
             padding: 12px;
             border-bottom: 1px solid #e5e7eb;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 300px;
         }}
         
         table tr:hover {{
             background: #f3f4f6;
+        }}  
+        
+        table td:first-child {{ 
+            max-width: 50px;
+        }}
+        
+        table td:last-child {{
+            max-width: 100px;
         }}
         
         .rank {{
@@ -209,8 +222,8 @@ class HTMLReporter:
         
         .module-name {{
             font-family: 'Courier New', monospace;
-            color: #1f2937;
-        }}
+            color: #1f2937;            word-break: break-all;
+            font-size: 0.9em;        }}
         
         .score {{
             font-weight: 600;
@@ -299,7 +312,17 @@ class HTMLReporter:
         {cycles_html}
         
         <div class="section">
-            <h2>📊 Métriques de Centralité</h2>
+            <h2>� Dépendances Externes</h2>
+            <div class="alert alert-success">
+                <strong>{len(self.external_deps)} bibliothèques externes</strong> utilisées dans le projet
+            </div>
+            <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
+                {self._generate_external_deps_badges()}
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>�📊 Métriques de Centralité</h2>
             
             <div class="metrics-grid">
                 <div class="metric-table">
@@ -469,3 +492,25 @@ class HTMLReporter:
             """
         except:
             return ""
+    
+    def _generate_external_deps_badges(self) -> str:
+        """Génère les badges des dépendances externes"""
+        if not self.external_deps:
+            return '<p style="color: #666;">Aucune dépendance externe détectée</p>'
+        
+        badges = []
+        for dep in sorted(self.external_deps):
+            badges.append(f"""
+                <span style="
+                    display: inline-block;
+                    padding: 6px 12px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-radius: 6px;
+                    font-family: 'Courier New', monospace;
+                    font-size: 0.9em;
+                    font-weight: 500;
+                ">{dep}</span>
+            """)
+        
+        return '\n'.join(badges)

@@ -30,6 +30,7 @@ def main():
     print("-" * 50)
     parser = CodeParser(str(project_path))
     dependencies = parser.parse_project()
+    external_deps = parser.get_all_external_dependencies()
     print(f"✅ {len(dependencies)} fichiers Python analysés")
     print(f"📄 Fichiers trouvés : {list(dependencies.keys())[:5]}{'...' if len(dependencies) > 5 else ''}")
     print()
@@ -101,7 +102,7 @@ def main():
     # Extraire le nom du projet depuis le path
     project_name = str(project_path).split('/')[-1]
     
-    html_reporter = HTMLReporter(graph, metrics, graph_info, project_name)
+    html_reporter = HTMLReporter(graph, metrics, graph_info, project_name, external_deps)
     html_file = html_reporter.generate_report(
         "report.html",
         "output_graph_simple.png",

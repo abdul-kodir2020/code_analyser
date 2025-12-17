@@ -239,9 +239,9 @@ class GraphVisualizer:
             
             # Info bulle avec métriques
             title = f"""
-            <b>{node}</b><br>
-            Centralité: {centrality:.3f}<br>
-            Dépendants: {in_deg}<br>
+            {node}
+            Centralité: {centrality:.3f}
+            Dépendants: {in_deg}
             Dépendances: {self.graph.out_degree(node)}
             """
             
