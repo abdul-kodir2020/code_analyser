@@ -160,13 +160,14 @@ class GraphVisualizer:
         
         plt.close()
     
-    def draw_interactive(self, metrics: dict = None, output_file: str = "graph_interactive.html"):
+    def draw_interactive(self, metrics: dict = None, output_file: str = "graph_interactive.html", security=None):
         """
         Crée un graphe interactif avec PyVis
         
         Args:
             metrics: Dictionnaire des métriques (optionnel)
             output_file: Nom du fichier HTML de sortie
+            security: Analyseur de sécurité (optionnel)
         """
         # Créer le réseau PyVis
         net = Network(
@@ -228,26 +229,38 @@ class GraphVisualizer:
         
         # Ajouter les nœuds avec style
         for node in self.graph.nodes():
+            # Vérifier si le module est dangereux
+            is_dangerous = security and security.is_module_dangerous(node)
+            
             # Taille basée sur la centralité
             centrality = degree_centrality.get(node, 0)
             size = 20 + centrality * 100
             
-            # Couleur basée sur le degré entrant (gradient de bleu)
+            # Couleur : ROUGE si dangereux, sinon gradient de bleu
             in_deg = in_degree.get(node, 0)
-            color_intensity = int(255 - (in_deg / max_in_degree * 150)) if max_in_degree > 0 else 255
-            color = f'#{color_intensity:02x}{color_intensity:02x}ff'
+            if is_dangerous:
+                color = '#ff0000'  # Rouge pour modules dangereux
+            else:
+                color_intensity = int(255 - (in_deg / max_in_degree * 150)) if max_in_degree > 0 else 255
+                color = f'#{color_intensity:02x}{color_intensity:02x}ff'
             
             # Info bulle avec métriques
-            title = f"""
-            {node}
-            Centralité: {centrality:.3f}
-            Dépendants: {in_deg}
-            Dépendances: {self.graph.out_degree(node)}
-            """
+            title_parts = [
+                f"{node}\\n<br/>",
+                f"Centralité: {centrality:.3f}\\n<br/>",
+                f"Dépendants: {in_deg}\\n<br/>",
+                f"Dépendances: {self.graph.out_degree(node)}"
+            ]
+            
+            if is_dangerous:
+                vulns = security.get_module_vulnerabilities(node)
+                title_parts.append(f"\\n\\n⚠️ {len(vulns)} vulnérabilités")
+            
+            title = ''.join(title_parts)
             
             net.add_node(
                 node,
-                label=node.split('/')[-1],  # Afficher juste le nom du fichier
+                label=node.split('/')[-1],
                 title=title,
                 size=size,
                 color=color

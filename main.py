@@ -10,6 +10,7 @@ from src.metrics import MetricsCalculator
 from src.visualizer import GraphVisualizer
 from src.git_manager import GitManager
 from src.html_reporter import HTMLReporter
+from src.security_analyzer import SecurityAnalyzer
 
 
 def main():
@@ -22,7 +23,8 @@ def main():
     print("📥 ÉTAPE 1/4 : Clonage du dépôt")
     print("-" * 50)
     git_manager = GitManager("input_data")
-    project_path = git_manager.clone_repository("https://github.com/rtzll/flask-todolist.git")
+    # project_path = git_manager.clone_repository("https://github.com/ndleah/python-mini-project.git")
+    project_path = git_manager.clone_repository("https://github.com/aymen1meziane/spagetti-projet.git")
     print()
     
     # === ÉTAPE 2 : Parser le code ===
@@ -33,6 +35,25 @@ def main():
     external_deps = parser.get_all_external_dependencies()
     print(f"✅ {len(dependencies)} fichiers Python analysés")
     print(f"📄 Fichiers trouvés : {list(dependencies.keys())[:5]}{'...' if len(dependencies) > 5 else ''}")
+    print()
+    
+    # === ANALYSE DE SÉCURITÉ ===
+    print("🔒 Analyse de sécurité")
+    print("-" * 50)
+    security = SecurityAnalyzer()
+    
+    # Analyser chaque fichier
+    python_files = list(project_path.rglob("*.py"))
+    for file_path in python_files:
+        module_name = str(file_path.relative_to(project_path))
+        security.analyze_file(file_path, module_name)
+    
+    security_summary = security.get_summary()
+    print(f"✅ Analyse de sécurité terminée")
+    print(f"   ⚠️  {security_summary['total']} vulnérabilités potentielles détectées")
+    print(f"      🔴 Critiques: {security_summary['by_severity']['CRITIQUE']}")
+    print(f"      🟠 Élevées: {security_summary['by_severity']['ÉLEVÉ']}")
+    print(f"      🟡 Moyennes: {security_summary['by_severity']['MOYEN']}")
     print()
     
     # === ÉTAPE 3 : Construire le graphe ===
@@ -89,8 +110,8 @@ def main():
     visualizer.draw_simple("output_graph_simple.png")
     visualizer.draw_with_metrics(metrics, "output_graph_metrics.png")
     
-    # Graphe interactif (HTML)
-    interactive_graph = visualizer.draw_interactive(metrics, "graph_interactive.html")
+    # Graphe interactif (HTML) avec sécurité
+    interactive_graph = visualizer.draw_interactive(metrics, "graph_interactive.html", security)
     
     print()
     
@@ -102,7 +123,7 @@ def main():
     # Extraire le nom du projet depuis le path
     project_name = str(project_path).split('/')[-1]
     
-    html_reporter = HTMLReporter(graph, metrics, graph_info, project_name, external_deps)
+    html_reporter = HTMLReporter(graph, metrics, graph_info, project_name, external_deps, security)
     html_file = html_reporter.generate_report(
         "report.html",
         "output_graph_simple.png",

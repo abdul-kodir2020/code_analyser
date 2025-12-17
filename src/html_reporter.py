@@ -11,7 +11,7 @@ from pathlib import Path
 class HTMLReporter:
     """Génère un rapport HTML complet de l'analyse"""
     
-    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None):
+    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None, security=None):
         """
         Initialise le générateur de rapport
         
@@ -21,12 +21,14 @@ class HTMLReporter:
             graph_info: Informations sur le graphe
             project_name: Nom du projet analysé
             external_deps: Ensemble des dépendances externes
+            security: Analyseur de sécurité
         """
         self.graph = graph
         self.metrics = metrics
         self.graph_info = graph_info
         self.project_name = project_name
         self.external_deps = external_deps or set()
+        self.security = security
     
     def generate_report(self, output_file: str = "report.html", 
                        img_simple: str = "output_graph_simple.png",
@@ -310,8 +312,8 @@ class HTMLReporter:
         </div>
         
         {cycles_html}
-        
-        <div class="section">
+                {self._generate_security_section()}
+                <div class="section">
             <h2>� Dépendances Externes</h2>
             <div class="alert alert-success">
                 <strong>{len(self.external_deps)} bibliothèques externes</strong> utilisées dans le projet
@@ -514,3 +516,165 @@ class HTMLReporter:
             """)
         
         return '\n'.join(badges)
+    
+    def _generate_security_section(self) -> str:
+        """Génère la section de sécurité"""
+        if not self.security:
+            return ""
+        
+        summary = self.security.get_summary()
+        
+        if summary['total'] == 0:
+            return """
+            <div class="section">
+                <h2>🔒 Analyse de Sécurité</h2>
+                <div class="alert alert-success">
+                    <strong>✅ Aucune vulnérabilité détectée !</strong> Le code ne contient pas de patterns dangereux connus.
+                </div>
+            </div>
+            """
+        
+        # Générer les cartes de statistiques
+        severity_cards = f"""
+        <div class="stats" style="margin-top: 20px;">
+            <div class="stat-card danger">
+                <h3>Critiques</h3>
+                <div class="value">{summary['by_severity']['CRITIQUE']}</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Élevées</h3>
+                <div class="value">{summary['by_severity']['ÉLEVÉ']}</div>
+            </div>
+            <div class="stat-card" style="color: #f59e0b;">
+                <h3>Moyennes</h3>
+                <div class="value">{summary['by_severity']['MOYEN']}</div>
+            </div>
+            <div class="stat-card success">
+                <h3>Modules à risque</h3>
+                <div class="value">{summary['dangerous_modules_count']}</div>
+            </div>
+        </div>
+        """
+        
+        # Générer la liste des vulnérabilités
+        vuln_table = self._generate_vulnerabilities_table()
+        
+        # Générer la liste des modules dangereux
+        dangerous_modules_section = self._generate_dangerous_modules_section()
+        
+        return f"""
+        <div class="section">
+            <h2>🔒 Analyse de Sécurité</h2>
+            <div class="alert alert-warning">
+                <strong>⚠️ {summary['total']} vulnérabilités potentielles détectées</strong>
+            </div>
+            
+            {severity_cards}
+            
+            {dangerous_modules_section}
+            
+            <div style="margin-top: 30px;">
+                <h3>📋 Détails des Vulnérabilités</h3>
+                {vuln_table}
+            </div>
+        </div>
+        """
+    
+    def _generate_vulnerabilities_table(self) -> str:
+        """Génère le tableau des vulnérabilités"""
+        if not self.security or not self.security.vulnerabilities:
+            return ""
+        
+        rows = []
+        for module, vulns in self.security.vulnerabilities.items():
+            for vuln in vulns:
+                rows.append(f"""
+                <tr>
+                    <td class="rank">{vuln['severity']}</td>
+                    <td class="module-name">{module}</td>
+                    <td>{vuln['line']}</td>
+                    <td style="font-family: 'Courier New', monospace; color: #dc2626;">{vuln['function']}</td>
+                    <td>{vuln['description'].replace('🔴', '').replace('🟠', '').replace('🟡', '').strip()}</td>
+                </tr>
+                """)
+        
+        return f"""
+        <div class="metric-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sévérité</th>
+                        <th>Fichier</th>
+                        <th>Ligne</th>
+                        <th>Fonction</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows)}
+                </tbody>
+            </table>
+        </div>
+        """
+    
+    def _generate_dangerous_modules_section(self) -> str:
+        """Génère la section des modules dangereux"""
+        if not self.security or not self.security.dangerous_modules:
+            return ""
+        
+        # Trier les modules par nombre de vulnérabilités
+        modules_with_counts = []
+        for module, funcs in self.security.dangerous_modules.items():
+            vuln_count = len(self.security.get_module_vulnerabilities(module))
+            modules_with_counts.append((module, vuln_count, funcs))
+        
+        modules_with_counts.sort(key=lambda x: x[1], reverse=True)
+        
+        # Générer les cartes de modules
+        module_cards = []
+        for module, vuln_count, dangerous_funcs in modules_with_counts[:10]:  # Top 10
+            severity_class = 'danger' if vuln_count >= 3 else 'warning' if vuln_count >= 2 else ''
+            
+            # Obtenir les vulnérabilités pour ce module
+            vulns = self.security.get_module_vulnerabilities(module)
+            vuln_details = '<br>'.join([
+                f"• <code>{v['function']}</code> (ligne {v['line']})" 
+                for v in vulns[:5]
+            ])
+            if len(vulns) > 5:
+                vuln_details += f"<br><em>... et {len(vulns) - 5} autres</em>"
+            
+            module_cards.append(f"""
+            <div class="metric-table" style="margin-bottom: 20px;">
+                <div style="background: {'#fee2e2' if severity_class == 'danger' else '#fef3c7'}; padding: 20px; border-left: 4px solid {'#dc2626' if severity_class == 'danger' else '#f59e0b'};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0; font-family: 'Courier New', monospace; color: #1f2937;">
+                            🔴 {module}
+                        </h4>
+                        <span style="
+                            background: {'#dc2626' if severity_class == 'danger' else '#f59e0b'};
+                            color: white;
+                            padding: 4px 12px;
+                            border-radius: 12px;
+                            font-weight: bold;
+                            font-size: 0.9em;
+                        ">
+                            {vuln_count} vulnérabilité{'s' if vuln_count > 1 else ''}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.9em; color: #374151; margin-top: 10px;">
+                        {vuln_details}
+                    </div>
+                </div>
+            </div>
+            """)
+        
+        return f"""
+        <div style="margin-top: 30px;">
+            <h3>🚨 Modules Dangereux ({len(modules_with_counts)})</h3>
+            <p style="color: #666; margin-bottom: 20px;">
+                Modules contenant des fonctions à risque ou des patterns de code vulnérables
+            </p>
+            {''.join(module_cards)}
+        </div>
+        """
