@@ -1,0 +1,6 @@
+# Librairies pour l'analyse de graphes
+networkx>=3.0
+matplotlib>=3.7.0
+
+# Utilitaires
+colorama>=0.4.6
