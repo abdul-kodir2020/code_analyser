@@ -172,8 +172,8 @@ class GraphVisualizer:
         net = Network(
             height='750px',
             width='100%',
-            bgcolor='#ffffff',
-            font_color='#000000',
+            bgcolor="#323030",
+            font_color="#F3E5E5",
             directed=True
         )
         
