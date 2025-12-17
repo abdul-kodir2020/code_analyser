@@ -58,10 +58,17 @@ class CodeParser:
         Returns:
             Dictionnaire {fichier: ensemble_des_imports}
         """
-        python_files = self.project_path.rglob("*.py")
+        python_files = list(self.project_path.rglob("*.py"))
+        print(f"   📁 Chemin projet : {self.project_path}")
+        print(f"   📄 Fichiers trouvés : {len(python_files)}")
         
         for file_path in python_files:
             module_name = str(file_path.relative_to(self.project_path))
-            self.dependencies[module_name] = self.parse_file(file_path)
+            imports = self.parse_file(file_path)
+            self.dependencies[module_name] = imports
+            
+            # Debug : afficher les premiers fichiers avec imports
+            if imports and len(self.dependencies) <= 3:
+                print(f"      {module_name}: {list(imports)[:3]}")
         
         return self.dependencies

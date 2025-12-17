@@ -9,6 +9,7 @@ from src.graph_builder import GraphBuilder
 from src.metrics import MetricsCalculator
 from src.visualizer import GraphVisualizer
 from src.git_manager import GitManager
+from src.html_reporter import HTMLReporter
 
 
 def main():
@@ -83,11 +84,30 @@ def main():
     print("-" * 50)
     visualizer = GraphVisualizer(graph)
     
-    # Graphe simple
+    # Graphes statiques (PNG)
     visualizer.draw_simple("output_graph_simple.png")
-    
-    # Graphe avec métriques
     visualizer.draw_with_metrics(metrics, "output_graph_metrics.png")
+    
+    # Graphe interactif (HTML)
+    interactive_graph = visualizer.draw_interactive(metrics, "graph_interactive.html")
+    
+    print()
+    
+    # === RAPPORT HTML ===
+    print()
+    print("📄 Génération du rapport HTML")
+    print("-" * 50)
+    
+    # Extraire le nom du projet depuis le path
+    project_name = str(project_path).split('/')[-1]
+    
+    html_reporter = HTMLReporter(graph, metrics, graph_info, project_name)
+    html_file = html_reporter.generate_report(
+        "report.html",
+        "output_graph_simple.png",
+        "output_graph_metrics.png",
+        "graph_interactive.html"
+    )
     
     print()
     print("=" * 50)
@@ -95,6 +115,11 @@ def main():
     print("📁 Fichiers générés :")
     print("   • output_graph_simple.png")
     print("   • output_graph_metrics.png")
+    print(f"   • graph_interactive.html (🎮 INTERACTIF)")
+    print(f"   • {html_file}")
+    print()
+    print(f"🌐 Ouvrez {html_file} dans votre navigateur !")
+    print(f"🎮 Ou explorez le graphe interactif : graph_interactive.html")
     print("=" * 50)
 
 

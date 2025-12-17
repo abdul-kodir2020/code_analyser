@@ -1,11 +1,12 @@
 """
 Étape 4 : Visualisation du graphe de dépendances
-Crée des représentations graphiques avec Matplotlib
+Crée des représentations graphiques avec Matplotlib et PyVis (interactif)
 """
 
 import networkx as nx
 import matplotlib.pyplot as plt
 from typing import Optional
+from pyvis.network import Network
 
 
 class GraphVisualizer:
@@ -18,6 +19,7 @@ class GraphVisualizer:
         Args:
             graph: Graphe NetworkX à visualiser
         """
+        self.graph = graph
         self.graph = graph
     
     def draw_simple(self, output_file: Optional[str] = None):
@@ -157,3 +159,106 @@ class GraphVisualizer:
             plt.show()
         
         plt.close()
+    
+    def draw_interactive(self, metrics: dict = None, output_file: str = "graph_interactive.html"):
+        """
+        Crée un graphe interactif avec PyVis
+        
+        Args:
+            metrics: Dictionnaire des métriques (optionnel)
+            output_file: Nom du fichier HTML de sortie
+        """
+        # Créer le réseau PyVis
+        net = Network(
+            height='750px',
+            width='100%',
+            bgcolor='#ffffff',
+            font_color='#000000',
+            directed=True
+        )
+        
+        # Configuration de la physique pour une meilleure visualisation
+        net.set_options("""
+        {
+            "physics": {
+                "enabled": true,
+                "forceAtlas2Based": {
+                    "gravitationalConstant": -50,
+                    "centralGravity": 0.01,
+                    "springLength": 200,
+                    "springConstant": 0.08,
+                    "damping": 0.4,
+                    "avoidOverlap": 0.5
+                },
+                "maxVelocity": 50,
+                "solver": "forceAtlas2Based",
+                "timestep": 0.35,
+                "stabilization": {"iterations": 150}
+            },
+            "nodes": {
+                "font": {
+                    "size": 14,
+                    "face": "Courier New"
+                }
+            },
+            "edges": {
+                "arrows": {
+                    "to": {
+                        "enabled": true,
+                        "scaleFactor": 0.5
+                    }
+                },
+                "smooth": {
+                    "type": "continuous"
+                }
+            }
+        }
+        """)
+        
+        # Calculer les métriques pour la taille et couleur des nœuds
+        if metrics:
+            degree_centrality = metrics.get('degree_centrality', {})
+            in_degree = metrics.get('in_degree', {})
+        else:
+            degree_centrality = nx.degree_centrality(self.graph)
+            in_degree = dict(self.graph.in_degree())
+        
+        # Normaliser les valeurs pour les couleurs
+        max_in_degree = max(in_degree.values()) if in_degree.values() else 1
+        
+        # Ajouter les nœuds avec style
+        for node in self.graph.nodes():
+            # Taille basée sur la centralité
+            centrality = degree_centrality.get(node, 0)
+            size = 20 + centrality * 100
+            
+            # Couleur basée sur le degré entrant (gradient de bleu)
+            in_deg = in_degree.get(node, 0)
+            color_intensity = int(255 - (in_deg / max_in_degree * 150)) if max_in_degree > 0 else 255
+            color = f'#{color_intensity:02x}{color_intensity:02x}ff'
+            
+            # Info bulle avec métriques
+            title = f"""
+            <b>{node}</b><br>
+            Centralité: {centrality:.3f}<br>
+            Dépendants: {in_deg}<br>
+            Dépendances: {self.graph.out_degree(node)}
+            """
+            
+            net.add_node(
+                node,
+                label=node.split('/')[-1],  # Afficher juste le nom du fichier
+                title=title,
+                size=size,
+                color=color
+            )
+        
+        # Ajouter les arêtes
+        for source, target in self.graph.edges():
+            net.add_edge(source, target, color='#999999', width=1.5)
+        
+        # Générer le fichier HTML
+        net.save_graph(output_file)
+        print(f"✅ Graphe interactif sauvegardé : {output_file}")
+        
+        return output_file
