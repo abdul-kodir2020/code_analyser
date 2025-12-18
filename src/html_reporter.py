@@ -115,6 +115,8 @@ class HTMLReporter:
         </main>
     </div>
     
+    <button id="themeToggle" onclick="toggleTheme()">🌙 Mode Sombre</button>
+    
     {self._get_javascript()}
 </body>
 </html>"""
@@ -128,10 +130,29 @@ class HTMLReporter:
             box-sizing: border-box;
         }
         
+        :root {
+            --bg: #f5f7fa;
+            --text: #333;
+            --card-bg: white;
+            --border: #e2e8f0;
+            --sidebar-bg-start: #1e3a8a;
+            --sidebar-bg-end: #312e81;
+        }
+        
+        body.dark-theme {
+            --bg: #1a1a1a;
+            --text: #e0e0e0;
+            --card-bg: #2d2d2d;
+            --border: #404040;
+            --sidebar-bg-start: #0f1729;
+            --sidebar-bg-end: #1a1540;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #f5f7fa;
-            color: #333;
+            background: var(--bg);
+            color: var(--text);
+            transition: background-color 0.3s, color 0.3s;
         }
         
         .dashboard {
@@ -142,7 +163,7 @@ class HTMLReporter:
         /* Sidebar */
         .sidebar {
             width: 280px;
-            background: linear-gradient(180deg, #1e3a8a 0%, #312e81 100%);
+            background: linear-gradient(180deg, var(--sidebar-bg-start) 0%, var(--sidebar-bg-end) 100%);
             color: white;
             padding: 0;
             position: fixed;
@@ -236,12 +257,12 @@ class HTMLReporter:
         }
         
         .stat-card {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border-left: 4px solid #667eea;
-            transition: transform 0.2s;
+            transition: transform 0.2s, background-color 0.3s;
         }
         
         .stat-card:hover {
@@ -251,7 +272,8 @@ class HTMLReporter:
         
         .stat-card h3 {
             font-size: 0.85em;
-            color: #6b7280;
+            color: var(--text);
+            opacity: 0.7;
             text-transform: uppercase;
             letter-spacing: 1px;
             margin-bottom: 10px;
@@ -278,26 +300,54 @@ class HTMLReporter:
         
         /* Section Card */
         .section-card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 30px;
             margin-bottom: 25px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: background-color 0.3s;
         }
         
         .section-card h2 {
             font-size: 1.5em;
             margin-bottom: 20px;
-            color: #1e293b;
-            border-bottom: 2px solid #e2e8f0;
+            color: var(--text);
+            border-bottom: 2px solid var(--border);
             padding-bottom: 15px;
+        }
+        
+        /* Bouton toggle thème */
+        #themeToggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+        }
+        
+        #themeToggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+        
+        body.dark-theme #themeToggle {
+            background: linear-gradient(135deg, #4a5dc9 0%, #5a3a7a 100%);
         }
         
         /* Tables */
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
+            background: var(--card-bg);
         }
         
         thead {
@@ -314,11 +364,16 @@ class HTMLReporter:
         
         td {
             padding: 12px 15px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
         }
         
         tr:hover {
-            background: #f8fafc;
+            background: rgba(0,0,0,0.02);
+        }
+        
+        body.dark-theme tr:hover {
+            background: rgba(255,255,255,0.05);
         }
         
         /* Badges */
@@ -427,6 +482,33 @@ class HTMLReporter:
                 const tabId = this.getAttribute('data-tab');
                 showTab(tabId);
             });
+        });
+        
+        // Toggle de thème
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.getElementById('themeToggle');
+            
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                button.innerHTML = '☀️ Mode Clair';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                button.innerHTML = '🌙 Mode Sombre';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Charger le thème sauvegardé
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const button = document.getElementById('themeToggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+                button.innerHTML = '☀️ Mode Clair';
+            }
         });
     </script>"""
 

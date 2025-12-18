@@ -9,13 +9,15 @@
 <body>
     <nav class="navbar">
         <div class="container">
-            <h1 class="logo">📊 Code Analyzer</h1>
+            <h1 class="logo">Code Analyzer</h1>
             <div class="nav-links">
                 <a href="/" class="active">Nouvelle Analyse</a>
                 <a href="/history">Historique</a>
             </div>
         </div>
     </nav>
+    
+    <button id="themeToggle" onclick="toggleTheme()">🌙 Mode Sombre</button>
 
     <main class="container main-content">
         <div class="hero">
@@ -39,7 +41,6 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <span class="btn-icon">🚀</span>
                     Lancer l'Analyse
                 </button>
             </form>
@@ -49,22 +50,18 @@
 
         <div class="features">
             <div class="feature-card">
-                <div class="feature-icon">🔒</div>
                 <h4>Sécurité</h4>
                 <p>Détection automatique de vulnérabilités (SQL injection, code injection, etc.)</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">🎯</div>
                 <h4>Attack Surface</h4>
                 <p>Cartographie des points d'entrée et chemins critiques</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">📈</div>
                 <h4>Métriques</h4>
                 <p>Analyse de complexité et centralité des modules</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">🌐</div>
                 <h4>Visualisation</h4>
                 <p>Graphes interactifs des dépendances</p>
             </div>
@@ -117,6 +114,32 @@
                 // Réactiver le bouton
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<span class="btn-icon">🚀</span> Lancer l\'Analyse';
+            }
+        });
+        
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.getElementById('themeToggle');
+            
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                button.innerHTML = '☀️ Mode Clair';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                button.innerHTML = '🌙 Mode Sombre';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Charger le thème sauvegardé
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const button = document.getElementById('themeToggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+                button.innerHTML = '☀️ Mode Clair';
             }
         });
     </script>

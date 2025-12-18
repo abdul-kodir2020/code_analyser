@@ -4,6 +4,8 @@ Code Dependency Analyzer - Point d'entrée principal
 Orchestre l'analyse des dépendances de code Python
 """
 
+import sys
+import warnings
 from src.parser import CodeParser
 from src.graph_builder import GraphBuilder
 from src.metrics import MetricsCalculator
@@ -13,6 +15,9 @@ from src.html_reporter import HTMLReporter
 from src.security_analyzer import SecurityAnalyzer
 from src.attack_surface import AttackSurfaceAnalyzer
 
+# Ignorer les SyntaxWarnings des projets analysés
+warnings.filterwarnings('ignore', category=SyntaxWarning)
+
 
 def main():
     """Point d'entrée principal de l'application"""
@@ -20,12 +25,18 @@ def main():
     print("=" * 50)
     print()
     
+    # Récupérer l'URL depuis les arguments ou utiliser une URL par défaut
+    if len(sys.argv) > 1:
+        repo_url = sys.argv[1]
+    else:
+        repo_url = "https://github.com/ndleah/python-mini-project.git"
+    
     # === ÉTAPE 1 : Cloner le dépôt Git ===
     print("📥 ÉTAPE 1/4 : Clonage du dépôt")
     print("-" * 50)
+    print(f"🔗 Repository: {repo_url}")
     git_manager = GitManager("input_data")
-    project_path = git_manager.clone_repository("https://github.com/ndleah/python-mini-project.git")
-    # project_path = git_manager.clone_repository("https://github.com/aymen1meziane/spagetti-projet.git")
+    project_path = git_manager.clone_repository(repo_url)
     print()
     
     # === ÉTAPE 2 : Parser le code ===

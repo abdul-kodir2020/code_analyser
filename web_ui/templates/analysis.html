@@ -9,13 +9,15 @@
 <body>
     <nav class="navbar">
         <div class="container">
-            <h1 class="logo">📊 Code Analyzer</h1>
+            <h1 class="logo">Code Analyzer</h1>
             <div class="nav-links">
                 <a href="/">Nouvelle Analyse</a>
                 <a href="/history">Historique</a>
             </div>
         </div>
     </nav>
+    
+    <button id="themeToggle" onclick="toggleTheme()">🌙 Mode Sombre</button>
 
     <main class="container main-content">
         <div class="page-header">
@@ -28,13 +30,13 @@
                 <div class="stat-label">Statut</div>
                 <div class="stat-value">
                     {% if analysis.status == 'completed' %}
-                        <span class="badge badge-success">✅ Terminé</span>
+                        <span class="badge badge-success">Terminé</span>
                     {% elif analysis.status == 'running' %}
-                        <span class="badge badge-warning">⏳ En cours</span>
+                        <span class="badge badge-warning">En cours</span>
                     {% elif analysis.status == 'failed' %}
-                        <span class="badge badge-danger">❌ Échec</span>
+                        <span class="badge badge-danger">Échec</span>
                     {% else %}
-                        <span class="badge badge-info">⏸️ En attente</span>
+                        <span class="badge badge-info">En attente</span>
                     {% endif %}
                 </div>
             </div>
@@ -66,7 +68,7 @@
                     L'analyse est terminée. Consultez le rapport détaillé ci-dessous.
                 </p>
                 <a href="/report/{{ analysis.id }}" target="_blank" class="btn btn-primary btn-lg">
-                    📊 Ouvrir le Rapport Complet
+                    Ouvrir le Rapport Complet
                 </a>
             </div>
         {% elif analysis.status == 'running' %}
@@ -83,7 +85,7 @@
         {% elif analysis.status == 'failed' %}
             <div class="card">
                 <div class="alert alert-danger">
-                    <h3>❌ L'analyse a échoué</h3>
+                    <h3>L'analyse a échoué</h3>
                     {% if analysis.error_message %}
                         <p><strong>Erreur:</strong> {{ analysis.error_message }}</p>
                     {% endif %}
@@ -98,7 +100,7 @@
             <h3>Actions</h3>
             <div class="action-buttons">
                 <a href="/history" class="btn btn-secondary">← Retour à l'historique</a>
-                <button onclick="deleteAnalysis()" class="btn btn-danger">🗑️ Supprimer cette analyse</button>
+                <button onclick="deleteAnalysis()" class="btn btn-danger">Supprimer cette analyse</button>
             </div>
         </div>
     </main>
@@ -123,6 +125,32 @@
                 alert('Erreur lors de la suppression: ' + error.message);
             }
         }
+        
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.getElementById('themeToggle');
+            
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                button.innerHTML = '☀️ Mode Clair';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                button.innerHTML = '🌙 Mode Sombre';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Charger le thème sauvegardé
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const button = document.getElementById('themeToggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+                button.innerHTML = '☀️ Mode Clair';
+            }
+        });
     </script>
 </body>
 </html>

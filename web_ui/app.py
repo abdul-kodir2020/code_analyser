@@ -224,18 +224,19 @@ def analysis_status(analysis_id):
 @app.route('/api/delete-analysis/<int:analysis_id>', methods=['DELETE'])
 def delete_analysis(analysis_id):
     """Supprimer une analyse"""
+    import shutil
+    
     conn = get_db()
     c = conn.cursor()
     
-    # Récupérer le chemin du rapport pour supprimer les fichiers
-    analysis = c.execute('SELECT report_path FROM analyses WHERE id = ?', (analysis_id,)).fetchone()
-    
-    if analysis and analysis['report_path']:
-        # Supprimer le dossier de l'analyse
-        analysis_dir = Path(analysis['report_path']).parent
-        if analysis_dir.exists():
-            import shutil
-            shutil.rmtree(analysis_dir, ignore_errors=True)
+    # Supprimer le dossier web_reports/analysis_X
+    analysis_dir = REPORTS_DIR / f'analysis_{analysis_id}'
+    if analysis_dir.exists():
+        try:
+            shutil.rmtree(analysis_dir)
+            print(f"✅ Dossier supprimé : {analysis_dir}")
+        except Exception as e:
+            print(f"⚠️ Erreur suppression dossier : {e}")
     
     # Supprimer de la base de données
     c.execute('DELETE FROM analyses WHERE id = ?', (analysis_id,))

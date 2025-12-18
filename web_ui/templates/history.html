@@ -9,13 +9,15 @@
 <body>
     <nav class="navbar">
         <div class="container">
-            <h1 class="logo">📊 Code Analyzer</h1>
+            <h1 class="logo">Code Analyzer</h1>
             <div class="nav-links">
                 <a href="/">Nouvelle Analyse</a>
                 <a href="/history" class="active">Historique</a>
             </div>
         </div>
     </nav>
+    
+    <button id="themeToggle" onclick="toggleTheme()">🌙 Mode Sombre</button>
 
     <main class="container main-content">
         <div class="page-header">
@@ -44,13 +46,13 @@
                             <td class="repo-url">{{ analysis.repo_url[:50] }}...</td>
                             <td>
                                 {% if analysis.status == 'completed' %}
-                                    <span class="badge badge-success">✅ Terminé</span>
+                                    <span class="badge badge-success">Terminé</span>
                                 {% elif analysis.status == 'running' %}
-                                    <span class="badge badge-warning">⏳ En cours</span>
+                                    <span class="badge badge-warning">En cours</span>
                                 {% elif analysis.status == 'failed' %}
-                                    <span class="badge badge-danger">❌ Échec</span>
+                                    <span class="badge badge-danger">Échec</span>
                                 {% else %}
-                                    <span class="badge badge-info">⏸️ En attente</span>
+                                    <span class="badge badge-info">En attente</span>
                                 {% endif %}
                             </td>
                             <td>{{ analysis.created_at[:19] }}</td>
@@ -122,6 +124,32 @@
                 location.reload();
             }
         }, 10000); // Rafraîchir toutes les 10 secondes
+        
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.getElementById('themeToggle');
+            
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                button.innerHTML = '☀️ Mode Clair';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                button.innerHTML = '🌙 Mode Sombre';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Charger le thème sauvegardé
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const button = document.getElementById('themeToggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+                button.innerHTML = '☀️ Mode Clair';
+            }
+        });
     </script>
 </body>
 </html>

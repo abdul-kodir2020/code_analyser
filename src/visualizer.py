@@ -169,12 +169,12 @@ class GraphVisualizer:
             output_file: Nom du fichier HTML de sortie
             security: Analyseur de sécurité (optionnel)
         """
-        # Créer le réseau PyVis
+        # Créer le réseau PyVis - PLEIN ÉCRAN
         net = Network(
-            height='750px',
+            height='100vh',  # 100% de la hauteur de la fenêtre
             width='100%',
-            bgcolor="#323030",
-            font_color="#F3E5E5",
+            bgcolor="#1a1a1a",  # Fond plus sombre
+            font_color="#e0e0e0",
             directed=True
         )
         
@@ -198,9 +198,12 @@ class GraphVisualizer:
             },
             "nodes": {
                 "font": {
-                    "size": 14,
-                    "face": "Courier New"
-                }
+                    "size": 16,
+                    "face": "Arial",
+                    "color": "#ffffff"
+                },
+                "borderWidth": 2,
+                "borderWidthSelected": 4
             },
             "edges": {
                 "arrows": {
@@ -211,7 +214,23 @@ class GraphVisualizer:
                 },
                 "smooth": {
                     "type": "continuous"
+                },
+                "color": {
+                    "color": "#666666",
+                    "highlight": "#667eea",
+                    "hover": "#888888"
                 }
+            },
+            "interaction": {
+                "hover": true,
+                "tooltipDelay": 100,
+                "navigationButtons": true,
+                "keyboard": {
+                    "enabled": true
+                }
+            },
+            "configure": {
+                "enabled": false
             }
         }
         """)
@@ -219,59 +238,131 @@ class GraphVisualizer:
         # Calculer les métriques pour la taille et couleur des nœuds
         if metrics:
             degree_centrality = metrics.get('degree_centrality', {})
+            betweenness_centrality = metrics.get('betweenness_centrality', {})
             in_degree = metrics.get('in_degree', {})
+            out_degree = metrics.get('out_degree', {})
         else:
             degree_centrality = nx.degree_centrality(self.graph)
+            betweenness_centrality = nx.betweenness_centrality(self.graph)
             in_degree = dict(self.graph.in_degree())
+            out_degree = dict(self.graph.out_degree())
         
         # Normaliser les valeurs pour les couleurs
         max_in_degree = max(in_degree.values()) if in_degree.values() else 1
         
-        # Ajouter les nœuds avec style
+        # Ajouter les nœuds avec style amélioré
         for node in self.graph.nodes():
             # Vérifier si le module est dangereux
             is_dangerous = security and security.is_module_dangerous(node)
             
-            # Taille basée sur la centralité
+            # Métriques
             centrality = degree_centrality.get(node, 0)
-            size = 20 + centrality * 100
+            betweenness = betweenness_centrality.get(node, 0)
+            in_deg = in_degree.get(node, 0)
+            out_deg = out_degree.get(node, 0)
+            
+            # Taille basée sur la centralité
+            size = 25 + centrality * 120
             
             # Couleur : ROUGE si dangereux, sinon gradient de bleu
-            in_deg = in_degree.get(node, 0)
             if is_dangerous:
-                color = '#ff0000'  # Rouge pour modules dangereux
+                color = '#ff3333'  # Rouge vif pour modules dangereux
+                border_color = '#ff0000'
             else:
                 color_intensity = int(255 - (in_deg / max_in_degree * 150)) if max_in_degree > 0 else 255
                 color = f'#{color_intensity:02x}{color_intensity:02x}ff'
+                border_color = '#4444ff'
             
-            # Info bulle avec métriques
-            title_parts = [
-                f"{node}\\n<br/>",
-                f"Centralité: {centrality:.3f}\\n<br/>",
-                f"Dépendants: {in_deg}\\n<br/>",
-                f"Dépendances: {self.graph.out_degree(node)}"
-            ]
+            # Info bulle simplifiée avec 2 métriques
+            title = f"""<div style='font-family: Arial; font-size: 13px; line-height: 1.8;'>
+<div style='font-weight: bold; margin-bottom: 8px; font-size: 14px;'>{node}</div>
+<div><b>Centralité:</b> {centrality:.3f}</div>
+<div><b>Dépendants:</b> {in_deg}</div>
+</div>"""
             
+            # Ajouter les vulnérabilités si présentes
             if is_dangerous:
                 vulns = security.get_module_vulnerabilities(node)
-                title_parts.append(f"\\n\\n⚠️ {len(vulns)} vulnérabilités")
-            
-            title = ''.join(title_parts)
+                vuln_info = f"<div style='margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;'><b style='color: #ff3333;'>⚠️ {len(vulns)} vulnérabilité{'s' if len(vulns) > 1 else ''}</b></div>"
+                title = title.replace('</div>"""', vuln_info + '</div>"""')
             
             net.add_node(
                 node,
-                label=node.split('/')[-1],
+                label=node.split('/')[-1],  # Afficher seulement le nom du fichier
                 title=title,
                 size=size,
-                color=color
+                color=color,
+                borderWidth=3,
+                borderWidthSelected=5,
+                font={'size': 16, 'color': 'rgba(255,255,255,0.9)', 'face': 'Arial'},
+                shadow={'enabled': True, 'size': 10}
             )
         
         # Ajouter les arêtes
         for source, target in self.graph.edges():
-            net.add_edge(source, target, color='#999999', width=1.5)
+            net.add_edge(
+                source, 
+                target, 
+                color={'color': '#666666', 'highlight': '#667eea'},
+                width=2,
+                arrows={'to': {'enabled': True, 'scaleFactor': 0.8}}
+            )
         
         # Générer le fichier HTML
         net.save_graph(output_file)
+        
+        # Modifier le HTML généré pour forcer le plein écran et améliorer les tooltips
+        with open(output_file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # Ajouter du CSS pour supprimer les marges, plein écran et styliser les tooltips
+        html_content = html_content.replace(
+            '<head>',
+            '''<head>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                }
+                #mynetwork {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                }
+                /* Améliorer le style des tooltips */
+                .vis-tooltip {
+                    background-color: rgba(20, 20, 30, 0.95) !important;
+                    border: 2px solid #667eea !important;
+                    border-radius: 8px !important;
+                    padding: 12px 16px !important;
+                    font-family: Arial, sans-serif !important;
+                    font-size: 14px !important;
+                    color: #e0e0e0 !important;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+                    max-width: 350px !important;
+                    min-width: 250px !important;
+                }
+                /* Améliorer la visibilité des boutons de navigation */
+                .vis-button {
+                    background-color: #667eea !important;
+                    border: 2px solid #5568d3 !important;
+                }
+                .vis-button:hover {
+                    background-color: #5568d3 !important;
+                    box-shadow: 0 0 10px #667eea !important;
+                }
+            </style>'''
+        )
+        
+        # Pas de modification supplémentaire du HTML
+        
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
         print(f"✅ Graphe interactif sauvegardé : {output_file}")
         
         return output_file
+
