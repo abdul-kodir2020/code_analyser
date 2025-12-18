@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse - {{ analysis.project_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">📊 Code Analyzer</h1>
+            <div class="nav-links">
+                <a href="/">Nouvelle Analyse</a>
+                <a href="/history">Historique</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container main-content">
+        <div class="page-header">
+            <h2>{{ analysis.project_name }}</h2>
+            <p>{{ analysis.repo_url }}</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Statut</div>
+                <div class="stat-value">
+                    {% if analysis.status == 'completed' %}
+                        <span class="badge badge-success">✅ Terminé</span>
+                    {% elif analysis.status == 'running' %}
+                        <span class="badge badge-warning">⏳ En cours</span>
+                    {% elif analysis.status == 'failed' %}
+                        <span class="badge badge-danger">❌ Échec</span>
+                    {% else %}
+                        <span class="badge badge-info">⏸️ En attente</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if analysis.total_modules %}
+            <div class="stat-card">
+                <div class="stat-label">Modules</div>
+                <div class="stat-value">{{ analysis.total_modules }}</div>
+            </div>
+            {% endif %}
+
+            {% if analysis.total_dependencies %}
+            <div class="stat-card">
+                <div class="stat-label">Dépendances</div>
+                <div class="stat-value">{{ analysis.total_dependencies }}</div>
+            </div>
+            {% endif %}
+
+            <div class="stat-card">
+                <div class="stat-label">Créé le</div>
+                <div class="stat-value" style="font-size: 1em;">{{ analysis.created_at[:19] }}</div>
+            </div>
+        </div>
+
+        {% if analysis.status == 'completed' %}
+            <div class="card">
+                <h3>Rapport d'Analyse</h3>
+                <p style="color: #64748b; margin-bottom: 20px;">
+                    L'analyse est terminée. Consultez le rapport détaillé ci-dessous.
+                </p>
+                <a href="/report/{{ analysis.id }}" target="_blank" class="btn btn-primary btn-lg">
+                    📊 Ouvrir le Rapport Complet
+                </a>
+            </div>
+        {% elif analysis.status == 'running' %}
+            <div class="card">
+                <div class="loading-state">
+                    <div class="spinner-large"></div>
+                    <h3>Analyse en cours...</h3>
+                    <p>Cette page se rafraîchira automatiquement toutes les 5 secondes</p>
+                </div>
+            </div>
+            <script>
+                setTimeout(() => location.reload(), 5000);
+            </script>
+        {% elif analysis.status == 'failed' %}
+            <div class="card">
+                <div class="alert alert-danger">
+                    <h3>❌ L'analyse a échoué</h3>
+                    {% if analysis.error_message %}
+                        <p><strong>Erreur:</strong> {{ analysis.error_message }}</p>
+                    {% endif %}
+                    <p style="margin-top: 15px;">
+                        <a href="/" class="btn btn-primary">Réessayer avec un autre projet</a>
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="card">
+            <h3>Actions</h3>
+            <div class="action-buttons">
+                <a href="/history" class="btn btn-secondary">← Retour à l'historique</a>
+                <button onclick="deleteAnalysis()" class="btn btn-danger">🗑️ Supprimer cette analyse</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        async function deleteAnalysis() {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cette analyse ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/delete-analysis/{{ analysis.id }}', {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = '/history';
+                }
+            } catch (error) {
+                alert('Erreur lors de la suppression: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

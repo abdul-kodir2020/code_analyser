@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historique des Analyses</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">📊 Code Analyzer</h1>
+            <div class="nav-links">
+                <a href="/">Nouvelle Analyse</a>
+                <a href="/history" class="active">Historique</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container main-content">
+        <div class="page-header">
+            <h2>Historique des Analyses</h2>
+            <p>Toutes vos analyses passées et en cours</p>
+        </div>
+
+        <div class="card">
+            {% if analyses %}
+                <table class="analyses-table">
+                    <thead>
+                        <tr>
+                            <th>Projet</th>
+                            <th>URL</th>
+                            <th>Statut</th>
+                            <th>Date</th>
+                            <th>Modules</th>
+                            <th>Dépendances</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for analysis in analyses %}
+                        <tr data-id="{{ analysis.id }}">
+                            <td><strong>{{ analysis.project_name }}</strong></td>
+                            <td class="repo-url">{{ analysis.repo_url[:50] }}...</td>
+                            <td>
+                                {% if analysis.status == 'completed' %}
+                                    <span class="badge badge-success">✅ Terminé</span>
+                                {% elif analysis.status == 'running' %}
+                                    <span class="badge badge-warning">⏳ En cours</span>
+                                {% elif analysis.status == 'failed' %}
+                                    <span class="badge badge-danger">❌ Échec</span>
+                                {% else %}
+                                    <span class="badge badge-info">⏸️ En attente</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ analysis.created_at[:19] }}</td>
+                            <td>{{ analysis.total_modules or '-' }}</td>
+                            <td>{{ analysis.total_dependencies or '-' }}</td>
+                            <td class="actions">
+                                {% if analysis.status == 'completed' %}
+                                    <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-primary">Voir</a>
+                                {% elif analysis.status == 'running' %}
+                                    <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-info">Suivre</a>
+                                {% endif %}
+                                <button data-analysis-id="{{ analysis.id }}" class="btn btn-sm btn-danger btn-delete">Supprimer</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <h3>Aucune analyse</h3>
+                    <p>Commencez par lancer votre première analyse</p>
+                    <a href="/" class="btn btn-primary">Nouvelle Analyse</a>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+        // Attacher les événements de suppression
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.btn-delete').forEach(button => {
+                button.addEventListener('click', async function() {
+                    const id = this.getAttribute('data-analysis-id');
+                    
+                    if (!confirm('Êtes-vous sûr de vouloir supprimer cette analyse ?')) {
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/delete-analysis/${id}`, {
+                            method: 'DELETE'
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            // Supprimer la ligne du tableau
+                            const row = document.querySelector(`tr[data-id="${id}"]`);
+                            row.remove();
+                            
+                            // Vérifier s'il reste des analyses
+                            const tbody = document.querySelector('tbody');
+                            if (tbody.children.length === 0) {
+                                location.reload();
+                            }
+                        }
+                    } catch (error) {
+                        alert('Erreur lors de la suppression: ' + error.message);
+                    }
+                });
+            });
+        });
+
+        // Auto-refresh pour les analyses en cours
+        setInterval(() => {
+            const runningAnalyses = document.querySelectorAll('.badge-warning');
+            if (runningAnalyses.length > 0) {
+                location.reload();
+            }
+        }, 10000); // Rafraîchir toutes les 10 secondes
+    </script>
+</body>
+</html>

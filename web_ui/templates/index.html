@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Analyzer - Accueil</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">📊 Code Analyzer</h1>
+            <div class="nav-links">
+                <a href="/" class="active">Nouvelle Analyse</a>
+                <a href="/history">Historique</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container main-content">
+        <div class="hero">
+            <h2>Analysez votre Code Python</h2>
+            <p>Détection de vulnérabilités, analyse de dépendances, métriques et attack surface mapping</p>
+        </div>
+
+        <div class="card">
+            <h3>Nouvelle Analyse</h3>
+            <form id="analysisForm" class="analysis-form">
+                <div class="form-group">
+                    <label for="repo_url">URL du Repository Git</label>
+                    <input 
+                        type="text" 
+                        id="repo_url" 
+                        name="repo_url" 
+                        placeholder="https://github.com/username/repository.git"
+                        required
+                    >
+                    <small>Entrez l'URL complète d'un repository Git public</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <span class="btn-icon">🚀</span>
+                    Lancer l'Analyse
+                </button>
+            </form>
+
+            <div id="statusMessage" class="status-message" style="display: none;"></div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h4>Sécurité</h4>
+                <p>Détection automatique de vulnérabilités (SQL injection, code injection, etc.)</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h4>Attack Surface</h4>
+                <p>Cartographie des points d'entrée et chemins critiques</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <h4>Métriques</h4>
+                <p>Analyse de complexité et centralité des modules</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h4>Visualisation</h4>
+                <p>Graphes interactifs des dépendances</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const form = document.getElementById('analysisForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMessage = document.getElementById('statusMessage');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const repoUrl = document.getElementById('repo_url').value.trim();
+            
+            // Désactiver le bouton
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Analyse en cours...';
+            
+            try {
+                const response = await fetch('/api/start-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ repo_url: repoUrl })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Afficher le message de succès
+                    statusMessage.className = 'status-message success';
+                    statusMessage.textContent = '✅ Analyse démarrée ! Redirection...';
+                    statusMessage.style.display = 'block';
+                    
+                    // Rediriger vers la page d'historique après 2 secondes
+                    setTimeout(() => {
+                        window.location.href = `/analysis/${data.analysis_id}`;
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Erreur inconnue');
+                }
+            } catch (error) {
+                statusMessage.className = 'status-message error';
+                statusMessage.textContent = `❌ Erreur: ${error.message}`;
+                statusMessage.style.display = 'block';
+                
+                // Réactiver le bouton
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="btn-icon">🚀</span> Lancer l\'Analyse';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -7,6 +7,14 @@ report.html
 # Dossier des projets clonés
 input_data/
 
+# Interface Web - Fichiers générés
+web_ui/analyses.db
+web_ui/analyses.db-journal
+web_reports/
+*.db
+*.db-journal
+WEB_UI_GUIDE.md
+
 # Python
 __pycache__/
 *.py[cod]

@@ -1,12 +1,22 @@
 # Code Dependency Analyzer
 
-Outil d'analyse de dépendances pour projets Python avec détection de vulnérabilités de sécurité.
+Outil d'analyse de dépendances pour projets Python avec détection de vulnérabilités de sécurité et **interface web intuitive**.
 
 ## Description
 
 Cet outil analyse les dépendances dans votre code Python, construit un graphe de dépendances, calcule des métriques pour identifier les points critiques de votre architecture, **détecte automatiquement les vulnérabilités de sécurité**, et **cartographie la surface d'attaque** en identifiant les chemins critiques accessibles depuis l'extérieur.
 
+🆕 **Interface Web** : Analysez vos projets depuis une interface web moderne, gérez l'historique des analyses et consultez les rapports interactifs.
+
 ## Fonctionnalités
+
+### 🌐 Interface Web (NOUVEAU)
+- **Analyse en un clic** : Interface intuitive pour lancer des analyses
+- **Personnalisation** : Entrez n'importe quelle URL Git à analyser
+- **Historique persistant** : Toutes vos analyses sauvegardées
+- **Suivi en temps réel** : Statut des analyses (en cours, terminé, échec)
+- **Dashboard moderne** : Design responsive avec gradient violet
+- **Gestion d'analyses** : Supprimer, consulter, comparer les résultats
 
 ### Analyse de Code
 - Parsing AST : Analyse complète du code source Python
@@ -43,12 +53,34 @@ Cet outil analyse les dépendances dans votre code Python, construit un graphe d
 ## Installation
 
 ```bash
+# Cloner le repository
+git clone https://github.com/abdul-kodir2020/code_analyser.git
+cd code_analyser
+
+# Installer les dépendances
 pip install -r requirements.txt
 ```
 
 ## Utilisation
 
-### Analyse rapide
+### 🌐 Mode Interface Web (Recommandé)
+
+```bash
+# Démarrer l'interface web
+cd web_ui
+python3 app.py
+```
+
+Puis ouvrez **http://localhost:5000** dans votre navigateur.
+
+**Fonctionnalités de l'interface :**
+- 📝 Entrez l'URL d'un repository Git
+- 🚀 Lancez l'analyse en un clic
+- 📊 Consultez l'historique de toutes vos analyses
+- 📈 Visualisez les rapports HTML interactifs
+- 🗑️ Gérez vos analyses (supprimer, archiver)
+
+### 💻 Mode Ligne de Commande
 
 ```bash
 python main.py
@@ -78,9 +110,19 @@ L'analyse génère automatiquement :
 
 ```
 code_dependency_analyzer/
-├── main.py                 # Point d'entrée principal
+├── main.py                 # Point d'entrée principal (CLI)
 ├── requirements.txt        # Dépendances
 ├── README.md              # Documentation
+│
+├── web_ui/                # INTERFACE WEB
+│   ├── app.py            # Application Flask
+│   ├── templates/        # Pages HTML
+│   │   ├── index.html   # Page d'accueil
+│   │   ├── history.html # Historique
+│   │   └── analysis.html # Détails d'analyse
+│   ├── static/
+│   │   └── style.css    # Design moderne
+│   └── README.md        # Documentation Web UI
 │
 ├── src/                   # Code source
 │   ├── __init__.py
@@ -94,7 +136,9 @@ code_dependency_analyzer/
 │   ├── attack_surface_html.py  # Génération HTML surface d'attaque
 │   └── html_reporter.py        # Génération du rapport
 │
-└── input_data/            # Projets clonés (auto)
+├── input_data/            # Projets clonés (auto)
+└── web_reports/           # Rapports web (auto)
+    └── analysis_N/        # Une analyse = un dossier
 ```
 
 ## Vulnérabilités Détectées
@@ -115,7 +159,13 @@ code_dependency_analyzer/
 ### Niveau MOYEN
 - `input()` - Entrée utilisateur non validée
 
-## Métriques Calculées
+## MétrInterface Web - Analyse Multiple Projets
+```bash
+cd web_ui && python3 app.py
+# Analysez plusieurs projets, comparez l'historique
+```
+
+### 2. Métriques Calculées
 
 | Métrique | Description | Usage |
 |----------|-------------|-------|
@@ -128,7 +178,7 @@ code_dependency_analyzer/
 ## Cas d'Usage
 
 ### 1. Audit de Sécurité
-Identifiez rapidement les fonctions dangereuses dans un projet :
+IdentifAudit de Sécuritéent les fonctions dangereuses dans un projet :
 ```bash
 python main.py
 # Ouvrez report.html → Section "Analyse de Sécurité"
@@ -140,19 +190,19 @@ Trouvez les modules trop couplés :
 # Cherchez les modules avec degré élevé dans le rapport
 ```
 
-### 3. Code Review
+### 3. Refactoring
 Visualisez les dépendances avant une PR :
 ```bash
 # Ouvrez graph_interactive.html pour explorer
 ```
 
-### 4. Documentation
+### 4. Code Review
 Générez automatiquement l'architecture :
 ```bash
 # Utilisez les graphes PNG pour la documentation
 ```
 
-### 5. Analyse de Surface d'Attaque
+### 5. Documentation
 Identifiez les endpoints exposant des modules critiques :
 ```bash
 python main.py /path/to/web/app
@@ -160,7 +210,7 @@ python main.py /path/to/web/app
 # Voir les routes avec risque CRITIQUE
 ```
 
-## Graphe Interactif
+### 6. Analyse de Surface d'Attaque
 
 Le graphe interactif (`graph_interactive.html`) offre :
 - **Zoom et Pan** : Navigation fluide
@@ -239,11 +289,33 @@ Ouvrez report.html dans votre navigateur !
 
 ## Technologies Utilisées
 
+- **Flask** - Interface web moderne
+- **SQLite** - Stockage de l'historique
 - **NetworkX** - Graphes et métriques
 - **Matplotlib** - Visualisations statiques
 - **PyVis** - Graphes interactifs
 - **AST** - Parsing du code Python
 - **Git** - Clonage automatique de repos
+
+## 🎯 Roadmap
+
+- [x] Analyse de dépendances
+- [x] Détection de vulnérabilités
+- [x] Attack Surface Mapping
+- [x] Interface Web
+- [x] Historique des analyses
+- [ ] Comparaison entre analyses
+- [ ] Export JSON/CSV/SARIF
+- [ ] Authentification utilisateur
+- [ ] Notifications temps réel (WebSocket)
+- [ ] Support multi-langages (JavaScript, TypeScript)
+- [ ] Intégration CI/CD
+- [ ] API REST documentée
+
+## 📚 Documentation Complète
+
+- [Guide Interface Web](web_ui/README.md) - Documentation détaillée de l'interface web
+- [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) - Guide complet des fonctionnalités web
 
 ## Licence
 
