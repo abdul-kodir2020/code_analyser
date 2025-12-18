@@ -1,6 +1,6 @@
 """
-Générateur de rapport HTML
-Crée une page web interactive pour visualiser les résultats de l'analyse
+Générateur de rapport HTML avec système d'onglets
+Crée une page web dashboard interactive
 """
 
 import networkx as nx
@@ -10,21 +10,9 @@ from src.attack_surface_html import generate_attack_surface_section
 
 
 class HTMLReporter:
-    """Génère un rapport HTML complet de l'analyse"""
+    """Génère un rapport HTML complet en mode dashboard avec onglets"""
     
     def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None, security=None, attack_surface=None):
-        """
-        Initialise le générateur de rapport
-        
-        Args:
-            graph: Graphe de dépendances
-            metrics: Dictionnaire des métriques calculées
-            graph_info: Informations sur le graphe
-            project_name: Nom du projet analysé
-            external_deps: Ensemble des dépendances externes
-            security: Analyseur de sécurité
-            attack_surface: Analyseur de surface d'attaque
-        """
         self.graph = graph
         self.metrics = metrics
         self.graph_info = graph_info
@@ -37,16 +25,7 @@ class HTMLReporter:
                        img_simple: str = "output_graph_simple.png",
                        img_metrics: str = "output_graph_metrics.png",
                        interactive_graph: str = "graph_interactive.html"):
-        """
-        Génère le rapport HTML complet
-        
-        Args:
-            output_file: Nom du fichier HTML de sortie
-            img_simple: Chemin de l'image du graphe simple
-            img_metrics: Chemin de l'image du graphe avec métriques
-            interactive_graph: Chemin du graphe interactif HTML
-        """
-        html_content = self._generate_html(img_simple, img_metrics, interactive_graph)
+        html_content = self._generate_dashboard_html(img_simple, img_metrics, interactive_graph)
         
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -54,391 +33,700 @@ class HTMLReporter:
         print(f"✅ Rapport HTML généré : {output_file}")
         return output_file
     
-    def _generate_html(self, img_simple: str, img_metrics: str, interactive_graph: str) -> str:
-        """Génère le contenu HTML complet"""
+    def _generate_dashboard_html(self, img_simple, img_metrics, interactive_graph):
+        """Génère le HTML avec système d'onglets"""
         
-        # Calculer les top modules
+        # Préparer les données
+        security_summary = self.security.get_summary() if self.security else None
+        attack_summary = self.attack_surface.get_summary() if self.attack_surface and self.attack_surface.entry_points else None
+        
+        # Générer les sections
+        overview_tab = self._generate_overview_tab(security_summary, attack_summary)
+        metrics_tab = self._generate_metrics_tab()
+        security_tab = self._generate_security_tab() if self.security else ""
+        attack_tab = self._generate_attack_surface_tab() if attack_summary else ""
+        deps_tab = self._generate_dependencies_tab()
+        graphs_tab = self._generate_graphs_tab(img_simple, img_metrics, interactive_graph)
+        
+        return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - {self.project_name}</title>
+    {self._get_styles()}
+</head>
+<body>
+    <div class="dashboard">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1>📊 Code Analyzer</h1>
+                <p>{self.project_name}</p>
+                <small>{datetime.now().strftime('%d/%m/%Y %H:%M')}</small>
+            </div>
+            <div class="nav-tabs">
+                <div class="nav-tab active" data-tab="overview">
+                    <span class="nav-tab-icon">🏠</span>
+                    <span>Vue d'ensemble</span>
+                </div>
+                <div class="nav-tab" data-tab="metrics">
+                    <span class="nav-tab-icon">📈</span>
+                    <span>Métriques</span>
+                </div>
+                {f'''<div class="nav-tab" data-tab="security">
+                    <span class="nav-tab-icon">🔒</span>
+                    <span>Sécurité</span>
+                </div>''' if self.security else ''}
+                {f'''<div class="nav-tab" data-tab="attack-surface">
+                    <span class="nav-tab-icon">🎯</span>
+                    <span>Attack Surface</span>
+                </div>''' if attack_summary else ''}
+                <div class="nav-tab" data-tab="dependencies">
+                    <span class="nav-tab-icon">🔗</span>
+                    <span>Dépendances</span>
+                </div>
+                <div class="nav-tab" data-tab="graphs">
+                    <span class="nav-tab-icon">🌐</span>
+                    <span>Visualisations</span>
+                </div>
+            </div>
+        </nav>
+        
+        <main class="main-content">
+            <div id="overview" class="tab-content active">
+                {overview_tab}
+            </div>
+            
+            <div id="metrics" class="tab-content">
+                {metrics_tab}
+            </div>
+            
+            {f'<div id="security" class="tab-content">{security_tab}</div>' if self.security else ''}
+            
+            {f'<div id="attack-surface" class="tab-content">{attack_tab}</div>' if attack_summary else ''}
+            
+            <div id="dependencies" class="tab-content">
+                {deps_tab}
+            </div>
+            
+            <div id="graphs" class="tab-content">
+                {graphs_tab}
+            </div>
+        </main>
+    </div>
+    
+    {self._get_javascript()}
+</body>
+</html>"""
+
+    def _get_styles(self):
+        """Retourne le CSS complet"""
+        return """<style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        .dashboard {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #1e3a8a 0%, #312e81 100%);
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar-header {
+            padding: 30px 20px;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.3em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .sidebar-header small {
+            font-size: 0.75em;
+            opacity: 0.6;
+        }
+        
+        .nav-tabs {
+            padding: 20px 0;
+        }
+        
+        .nav-tab {
+            display: flex;
+            align-items: center;
+            padding: 15px 25px;
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-tab:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        
+        .nav-tab.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border-left-color: #60a5fa;
+            font-weight: 600;
+        }
+        
+        .nav-tab-icon {
+            font-size: 1.3em;
+            margin-right: 12px;
+            min-width: 25px;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 30px;
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }
+        
+        .stat-card h3 {
+            font-size: 0.85em;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .stat-card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        
+        .stat-card.success { border-left-color: #10b981; }
+        .stat-card.success .value { color: #10b981; }
+        
+        .stat-card.warning { border-left-color: #f59e0b; }
+        .stat-card.warning .value { color: #f59e0b; }
+        
+        .stat-card.danger { border-left-color: #ef4444; }
+        .stat-card.danger .value { color: #ef4444; }
+        
+        .stat-card.info { border-left-color: #3b82f6; }
+        .stat-card.info .value { color: #3b82f6; }
+        
+        /* Section Card */
+        .section-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section-card h2 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #1e293b;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 15px;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        tr:hover {
+            background: #f8fafc;
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .badge-danger { background: #fee2e2; color: #dc2626; }
+        .badge-warning { background: #fef3c7; color: #d97706; }
+        .badge-info { background: #dbeafe; color: #2563eb; }
+        .badge-success { background: #d1fae5; color: #059669; }
+        
+        /* Alert */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid;
+        }
+        
+        .alert-danger { background: #fef2f2; border-left-color: #dc2626; color: #991b1b; }
+        .alert-warning { background: #fffbeb; border-left-color: #f59e0b; color: #92400e; }
+        .alert-info { background: #eff6ff; border-left-color: #3b82f6; color: #1e40af; }
+        
+        /* Graph Container */
+        .graph-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .graph-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        .interactive-link {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        .interactive-link:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: relative;
+                height: auto;
+            }
+            
+            .main-content {
+                margin-left: 0;
+                padding: 15px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>"""
+
+    def _get_javascript(self):
+        """Retourne le JavaScript pour les onglets"""
+        return """<script>
+        function showTab(tabId) {
+            // Cacher tous les onglets
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Retirer active de tous les nav-tabs
+            document.querySelectorAll('.nav-tab').forEach(nav => {
+                nav.classList.remove('active');
+            });
+            
+            // Afficher l'onglet sélectionné
+            const selectedTab = document.getElementById(tabId);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+            }
+            
+            // Activer le nav-tab correspondant
+            const selectedNav = document.querySelector(`[data-tab="${tabId}"]`);
+            if (selectedNav) {
+                selectedNav.classList.add('active');
+            }
+        }
+        
+        // Gestionnaire de clics sur les nav-tabs
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabId = this.getAttribute('data-tab');
+                showTab(tabId);
+            });
+        });
+    </script>"""
+
+    def _generate_overview_tab(self, security_summary, attack_summary):
+        """Génère l'onglet vue d'ensemble"""
+        security_cards = ""
+        if security_summary:
+            security_cards = f"""
+            <div class="stat-card danger">
+                <h3>Vuln. Critiques</h3>
+                <div class="value">{security_summary['by_severity']['CRITIQUE']}</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Vuln. Élevées</h3>
+                <div class="value">{security_summary['by_severity']['ÉLEVÉ']}</div>
+            </div>"""
+        
+        attack_cards = ""
+        if attack_summary:
+            attack_cards = f"""
+            <div class="stat-card info">
+                <h3>Points d'Entrée</h3>
+                <div class="value">{attack_summary['total_entry_points']}</div>
+            </div>
+            <div class="stat-card danger">
+                <h3>Chemins Critiques</h3>
+                <div class="value">{attack_summary['critical_paths']}</div>
+            </div>"""
+        
+        is_dag_text = "✅ Oui" if self.graph_info['is_dag'] else "❌ Non"
+        
+        return f"""
+        <div class="stats-grid">
+            <div class="stat-card info">
+                <h3>Modules</h3>
+                <div class="value">{self.graph_info['nodes']}</div>
+            </div>
+            <div class="stat-card success">
+                <h3>Dépendances</h3>
+                <div class="value">{self.graph_info['edges']}</div>
+            </div>
+            <div class="stat-card {'success' if self.graph_info['is_dag'] else 'warning'}">
+                <h3>DAG (Sans Cycles)</h3>
+                <div class="value" style="font-size: 1.5em;">{is_dag_text}</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Dép. Externes</h3>
+                <div class="value">{len(self.external_deps)}</div>
+            </div>
+            {security_cards}
+            {attack_cards}
+        </div>
+        
+        <div class="section-card">
+            <h2>📊 Résumé de l'Analyse</h2>
+            <p style="color: #64748b; line-height: 1.8;">
+                Ce projet contient <strong>{self.graph_info['nodes']} modules</strong> avec 
+                <strong>{self.graph_info['edges']} dépendances</strong>. 
+                {'Le graphe est acyclique (DAG), ce qui indique une bonne architecture sans dépendances circulaires.' if self.graph_info['is_dag'] else 
+                 f"<span style='color: #dc2626;'>⚠️ Attention : {self.graph_info['cycles']} cycle(s) de dépendances détecté(s).</span>"}
+            </p>
+        </div>
+        """
+    
+    def _generate_metrics_tab(self):
+        """Génère l'onglet métriques"""
         top_degree = self._get_top_modules("degree_centrality", 10)
         top_in = self._get_top_modules("in_degree", 10)
         top_out = self._get_top_modules("out_degree", 10)
         top_betweenness = self._get_top_modules("betweenness_centrality", 10)
         
-        # Détecter les cycles
+        return f"""
+        <div class="section-card">
+            <h2>📈 Top 10 - Centralité de Degré</h2>
+            <p style="color: #64748b; margin-bottom: 20px;">Modules les plus connectés (hubs du système)</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Module</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f'<tr><td>{i}</td><td>{mod}</td><td>{score:.3f}</td></tr>' 
+                             for i, (mod, score) in enumerate(top_degree, 1)])}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section-card">
+            <h2>🔗 Top 10 - Degré Entrant</h2>
+            <p style="color: #64748b; margin-bottom: 20px;">Modules les plus utilisés (impact fort si modifiés)</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Module</th>
+                        <th>Dépendants</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f'<tr><td>{i}</td><td>{mod}</td><td>{count}</td></tr>' 
+                             for i, (mod, count) in enumerate(top_in, 1)])}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section-card">
+            <h2>📤 Top 10 - Degré Sortant</h2>
+            <p style="color: #64748b; margin-bottom: 20px;">Modules avec le plus de dépendances (couplage fort)</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Module</th>
+                        <th>Dépendances</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f'<tr><td>{i}</td><td>{mod}</td><td>{count}</td></tr>' 
+                             for i, (mod, count) in enumerate(top_out, 1)])}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section-card">
+            <h2>🌉 Top 10 - Centralité d'Intermédiarité</h2>
+            <p style="color: #64748b; margin-bottom: 20px;">Modules "pont" critiques (goulots d'étranglement)</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Module</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f'<tr><td>{i}</td><td>{mod}</td><td>{score:.3f}</td></tr>' 
+                             for i, (mod, score) in enumerate(top_betweenness, 1)])}
+                </tbody>
+            </table>
+        </div>
+        """
+    
+    def _generate_security_tab(self):
+        """Génère l'onglet sécurité"""
+        if not self.security:
+            return ""
+        
+        summary = self.security.get_summary()
+        
+        # Récupérer toutes les vulnérabilités (c'est un dict module -> liste)
+        all_vulns = []
+        for module_name, vulns_list in self.security.vulnerabilities.items():
+            all_vulns.extend(vulns_list)
+        
+        # Générer le tableau des vulnérabilités
+        vuln_rows = []
+        for vuln in all_vulns[:50]:  # Limiter à 50 pour la performance
+            severity_class = {
+                'CRITIQUE': 'badge-danger',
+                'ÉLEVÉ': 'badge-warning',
+                'MOYEN': 'badge-info'
+            }.get(vuln['severity'], 'badge-info')
+            
+            vuln_rows.append(f"""
+            <tr>
+                <td><span class="badge {severity_class}">{vuln['severity']}</span></td>
+                <td style="font-family: monospace; font-size: 0.9em;">{vuln['module']}</td>
+                <td>{vuln.get('type', 'N/A')}</td>
+                <td style="color: #dc2626; font-weight: 600;">{vuln['function']}</td>
+                <td style="color: #64748b;">{vuln.get('description', '')}</td>
+                <td style="text-align: center;">{vuln['line']}</td>
+            </tr>
+            """)
+        
+        return f"""
+        <div class="stats-grid">
+            <div class="stat-card danger">
+                <h3>Total Vulnérabilités</h3>
+                <div class="value">{summary['total']}</div>
+            </div>
+            <div class="stat-card danger">
+                <h3>Critiques</h3>
+                <div class="value">{summary['by_severity']['CRITIQUE']}</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Élevées</h3>
+                <div class="value">{summary['by_severity']['ÉLEVÉ']}</div>
+            </div>
+            <div class="stat-card info">
+                <h3>Moyennes</h3>
+                <div class="value">{summary['by_severity']['MOYEN']}</div>
+            </div>
+        </div>
+        
+        {f'<div class="alert alert-danger"><strong>⚠️ Attention Critique !</strong> {summary["by_severity"]["CRITIQUE"]} vulnérabilité(s) critique(s) détectée(s). Action immédiate requise.</div>' if summary['by_severity']['CRITIQUE'] > 0 else ''}
+        
+        <div class="section-card">
+            <h2>🔒 Détail des Vulnérabilités</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sévérité</th>
+                        <th>Module</th>
+                        <th>Type</th>
+                        <th>Fonction</th>
+                        <th>Description</th>
+                        <th>Ligne</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(vuln_rows)}
+                </tbody>
+            </table>
+        </div>
+        """
+    
+    def _generate_attack_surface_tab(self):
+        """Génère l'onglet attack surface"""
+        if not self.attack_surface or not self.attack_surface.entry_points:
+            return ""
+        
+        return generate_attack_surface_section(self.attack_surface)
+    
+    def _generate_dependencies_tab(self):
+        """Génère l'onglet dépendances"""
         cycles_html = self._generate_cycles_section()
         
-        html = f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analyse de Dépendances - {self.project_name}</title>
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
+        deps_badges = []
+        for dep in sorted(self.external_deps):
+            deps_badges.append(f'<span class="badge badge-info" style="margin: 5px;">{dep}</span>')
         
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            padding: 20px;
-        }}
-        
-        .container {{
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
-        }}
-        
-        header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px;
-            text-align: center;
-        }}
-        
-        header h1 {{
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }}
-        
-        header p {{
-            font-size: 1.1em;
-            opacity: 0.9;
-        }}
-        
-        .stats {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            padding: 30px;
-            background: #f8f9fa;
-        }}
-        
-        .stat-card {{
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            text-align: center;
-        }}
-        
-        .stat-card h3 {{
-            font-size: 0.9em;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }}
-        
-        .stat-card .value {{
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #667eea;
-        }}
-        
-        .stat-card.success .value {{
-            color: #10b981;
-        }}
-        
-        .stat-card.warning .value {{
-            color: #f59e0b;
-        }}
-        
-        .stat-card.danger .value {{
-            color: #ef4444;
-        }}
-        
-        .section {{
-            padding: 40px;
-        }}
-        
-        .section h2 {{
-            font-size: 1.8em;
-            margin-bottom: 20px;
-            color: #1f2937;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
-        }}
-        
-        .metrics-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-top: 30px;
-        }}
-        
-        .metric-table {{
-            background: #f9fafb;
-            border-radius: 8px;
-            overflow: hidden;
-        }}
-        
-        .metric-table h3 {{
-            background: #667eea;
-            color: white;
-            padding: 15px;
-            font-size: 1.1em;
-        }}
-        
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-        }}
-        
-        table th {{
-            background: #e5e7eb;
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #374151;
-        }}
-        
-        table td {{
-            padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            max-width: 300px;
-        }}
-        
-        table tr:hover {{
-            background: #f3f4f6;
-        }}  
-        
-        table td:first-child {{ 
-            max-width: 50px;
-        }}
-        
-        table td:last-child {{
-            max-width: 100px;
-        }}
-        
-        .rank {{
-            font-weight: bold;
-            color: #667eea;
-            font-size: 1.1em;
-        }}
-        
-        .module-name {{
-            font-family: 'Courier New', monospace;
-            color: #1f2937;            word-break: break-all;
-            font-size: 0.9em;        }}
-        
-        .score {{
-            font-weight: 600;
-            color: #059669;
-        }}
-        
-        .graph-container {{
-            margin-top: 30px;
-            text-align: center;
-        }}
-        
-        .graph-container img {{
-            max-width: 100%;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            margin-bottom: 20px;
-        }}
-        
-        .alert {{
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }}
-        
-        .alert-warning {{
-            background: #fef3c7;
-            border-left: 4px solid #f59e0b;
-            color: #92400e;
-        }}
-        
-        .alert-success {{
-            background: #d1fae5;
-            border-left: 4px solid #10b981;
-            color: #065f46;
-        }}
-        
-        .cycle-list {{
-            margin-top: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-        }}
-        
-        .cycle-item {{
-            padding: 8px;
-            background: white;
-            margin: 5px 0;
-            border-radius: 4px;
-        }}
-        
-        footer {{
-            background: #1f2937;
-            color: white;
-            text-align: center;
-            padding: 20px;
-            font-size: 0.9em;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🔍 Analyse de Dépendances</h1>
-            <p>{self.project_name}</p>
-            <p style="font-size: 0.9em; opacity: 0.8;">Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}</p>
-        </header>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <h3>Modules</h3>
-                <div class="value">{self.graph_info['nodes']}</div>
-            </div>
-            <div class="stat-card">
-                <h3>Dépendances</h3>
-                <div class="value">{self.graph_info['edges']}</div>
-            </div>
-            <div class="stat-card {'success' if self.graph_info['is_dag'] else 'danger'}">
-                <h3>Structure</h3>
-                <div class="value">{'✓ DAG' if self.graph_info['is_dag'] else '✗ Cycles'}</div>
-            </div>
-            <div class="stat-card {'success' if self.graph_info['cycles'] == 0 else 'danger'}">
-                <h3>Cycles détectés</h3>
-                <div class="value">{self.graph_info['cycles']}</div>
+        return f"""
+        <div class="section-card">
+            <h2>📦 Dépendances Externes ({len(self.external_deps)})</h2>
+            <div style="margin-top: 20px;">
+                {''.join(deps_badges) if deps_badges else '<p style="color: #64748b;">Aucune dépendance externe détectée</p>'}
             </div>
         </div>
         
         {cycles_html}
-                {self._generate_security_section()}
-                <div class="section">
-            <h2>� Dépendances Externes</h2>
-            <div class="alert alert-success">
-                <strong>{len(self.external_deps)} bibliothèques externes</strong> utilisées dans le projet
-            </div>
-            <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
-                {self._generate_external_deps_badges()}
-            </div>
+        """
+    
+    def _generate_graphs_tab(self, img_simple, img_metrics, interactive_graph):
+        """Génère l'onglet visualisations"""
+        return f"""
+        <div class="section-card">
+            <h2>🌐 Visualisations Interactives</h2>
+            <p style="color: #64748b; margin-bottom: 20px;">
+                Explorez le graphe de dépendances de manière interactive avec zoom, déplacement et tooltips.
+            </p>
+            <a href="{interactive_graph}" target="_blank" class="interactive-link">
+                🎮 Ouvrir le Graphe Interactif
+            </a>
         </div>
         
-        <div class="section">
-            <h2>�📊 Métriques de Centralité</h2>
-            
-            <div class="metrics-grid">
-                <div class="metric-table">
-                    <h3>🏆 Top Centralité de Degré</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Module</th>
-                                <th>Score</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {self._generate_table_rows(top_degree)}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="metric-table">
-                    <h3>🔗 Top Modules Dépendants</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Module</th>
-                                <th>Dépendants</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {self._generate_table_rows(top_in)}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="metric-table">
-                    <h3>📤 Top Modules avec Dépendances</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Module</th>
-                                <th>Dépendances</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {self._generate_table_rows(top_out)}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="metric-table">
-                    <h3>🌉 Top Centralité d'Intermédiarité</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Module</th>
-                                <th>Score</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {self._generate_table_rows(top_betweenness)}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        
-        <div class="section">
-            <h2>📈 Visualisations du Graphe</h2>
-            
-            <div class="alert alert-success">
-                <strong>🎮 Graphe Interactif</strong> - Cliquez sur le bouton ci-dessous pour explorer le graphe avec zoom, drag & drop et filtres !
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{interactive_graph}" target="_blank" style="
-                    display: inline-block;
-                    padding: 15px 40px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 8px;
-                    font-size: 1.2em;
-                    font-weight: bold;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                    transition: transform 0.2s;
-                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                    🎮 Ouvrir le Graphe Interactif
-                </a>
-            </div>
-            
+        <div class="section-card">
+            <h2>📊 Graphe Simple</h2>
             <div class="graph-container">
-                <h3>Graphe Simple</h3>
                 <img src="{img_simple}" alt="Graphe simple de dépendances">
-                
-                <h3>Graphe avec Métriques</h3>
-                <img src="{img_metrics}" alt="Graphe avec métriques">
             </div>
         </div>
         
-        {self._generate_attack_surface_section() if self.attack_surface and self.attack_surface.entry_points else ''}
+        <div class="section-card">
+            <h2>📈 Graphe avec Métriques</h2>
+            <div class="graph-container">
+                <img src="{img_metrics}" alt="Graphe avec métriques de centralité">
+            </div>
+        </div>
+        """
+    
+    def _generate_cycles_section(self):
+        """Génère la section des cycles"""
+        if self.graph_info['is_dag']:
+            return '<div class="alert alert-info">✅ Aucun cycle détecté. Le graphe est acyclique (DAG).</div>'
         
-        <footer>
-            <p>Généré par Code Dependency Analyzer | © 2025</p>
-        </footer>
-    </div>
-</body>
-</html>"""
+        cycles = []
+        try:
+            cycles_found = list(nx.simple_cycles(self.graph))[:5]
+            for i, cycle in enumerate(cycles_found, 1):
+                cycle_str = ' → '.join(cycle) + f' → {cycle[0]}'
+                cycles.append(f'<li><strong>Cycle {i}:</strong> {cycle_str}</li>')
+        except:
+            pass
         
-        return html
+        if cycles:
+            return f"""
+            <div class="section-card">
+                <h2>⚠️ Cycles de Dépendances Détectés</h2>
+                <div class="alert alert-warning">
+                    <strong>Attention !</strong> Des dépendances circulaires ont été détectées.
+                </div>
+                <ul style="line-height: 2; color: #64748b;">
+                    {''.join(cycles)}
+                </ul>
+            </div>
+            """
+        return ""
     
     def _get_top_modules(self, metric: str, top_n: int = 10) -> list:
         """Récupère les top modules pour une métrique donnée"""
@@ -452,241 +740,3 @@ class HTMLReporter:
         )
         
         return sorted_modules[:top_n]
-    
-    def _generate_table_rows(self, data: list) -> str:
-        """Génère les lignes HTML pour un tableau"""
-        rows = []
-        for i, (module, score) in enumerate(data, 1):
-            rows.append(f"""
-                <tr>
-                    <td class="rank">{i}</td>
-                    <td class="module-name">{module}</td>
-                    <td class="score">{score:.3f}</td>
-                </tr>
-            """)
-        
-        return '\n'.join(rows) if rows else '<tr><td colspan="3">Aucune donnée</td></tr>'
-    
-    def _generate_cycles_section(self) -> str:
-        """Génère la section des cycles détectés"""
-        if self.graph_info['is_dag']:
-            return """
-            <div class="section">
-                <div class="alert alert-success">
-                    <strong>✅ Aucun cycle détecté !</strong> Le graphe est un DAG (Directed Acyclic Graph). 
-                    C'est une bonne pratique : pas de dépendances circulaires.
-                </div>
-            </div>
-            """
-        
-        try:
-            cycles = list(nx.simple_cycles(self.graph))[:5]  # Top 5 cycles
-            cycle_items = '\n'.join([
-                f'<div class="cycle-item">{" → ".join(cycle)} → {cycle[0]}</div>'
-                for cycle in cycles
-            ])
-            
-            return f"""
-            <div class="section">
-                <div class="alert alert-warning">
-                    <strong>⚠️ Dépendances circulaires détectées !</strong>
-                    <div class="cycle-list">
-                        {cycle_items}
-                        {f'<p style="margin-top: 10px;"><em>... et {len(cycles) - 5} autres cycles</em></p>' if len(cycles) > 5 else ''}
-                    </div>
-                </div>
-            </div>
-            """
-        except:
-            return ""
-    
-    def _generate_external_deps_badges(self) -> str:
-        """Génère les badges des dépendances externes"""
-        if not self.external_deps:
-            return '<p style="color: #666;">Aucune dépendance externe détectée</p>'
-        
-        badges = []
-        for dep in sorted(self.external_deps):
-            badges.append(f"""
-                <span style="
-                    display: inline-block;
-                    padding: 6px 12px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border-radius: 6px;
-                    font-family: 'Courier New', monospace;
-                    font-size: 0.9em;
-                    font-weight: 500;
-                ">{dep}</span>
-            """)
-        
-        return '\n'.join(badges)
-    
-    def _generate_security_section(self) -> str:
-        """Génère la section de sécurité"""
-        if not self.security:
-            return ""
-        
-        summary = self.security.get_summary()
-        
-        if summary['total'] == 0:
-            return """
-            <div class="section">
-                <h2>🔒 Analyse de Sécurité</h2>
-                <div class="alert alert-success">
-                    <strong>✅ Aucune vulnérabilité détectée !</strong> Le code ne contient pas de patterns dangereux connus.
-                </div>
-            </div>
-            """
-        
-        # Générer les cartes de statistiques
-        severity_cards = f"""
-        <div class="stats" style="margin-top: 20px;">
-            <div class="stat-card danger">
-                <h3>Critiques</h3>
-                <div class="value">{summary['by_severity']['CRITIQUE']}</div>
-            </div>
-            <div class="stat-card warning">
-                <h3>Élevées</h3>
-                <div class="value">{summary['by_severity']['ÉLEVÉ']}</div>
-            </div>
-            <div class="stat-card" style="color: #f59e0b;">
-                <h3>Moyennes</h3>
-                <div class="value">{summary['by_severity']['MOYEN']}</div>
-            </div>
-            <div class="stat-card success">
-                <h3>Modules à risque</h3>
-                <div class="value">{summary['dangerous_modules_count']}</div>
-            </div>
-        </div>
-        """
-        
-        # Générer la liste des vulnérabilités
-        vuln_table = self._generate_vulnerabilities_table()
-        
-        # Générer la liste des modules dangereux
-        dangerous_modules_section = self._generate_dangerous_modules_section()
-        
-        return f"""
-        <div class="section">
-            <h2>🔒 Analyse de Sécurité</h2>
-            <div class="alert alert-warning">
-                <strong>⚠️ {summary['total']} vulnérabilités potentielles détectées</strong>
-            </div>
-            
-            {severity_cards}
-            
-            {dangerous_modules_section}
-            
-            <div style="margin-top: 30px;">
-                <h3>📋 Détails des Vulnérabilités</h3>
-                {vuln_table}
-            </div>
-        </div>
-        """
-    
-    def _generate_vulnerabilities_table(self) -> str:
-        """Génère le tableau des vulnérabilités"""
-        if not self.security or not self.security.vulnerabilities:
-            return ""
-        
-        rows = []
-        for module, vulns in self.security.vulnerabilities.items():
-            for vuln in vulns:
-                rows.append(f"""
-                <tr>
-                    <td class="rank">{vuln['severity']}</td>
-                    <td class="module-name">{module}</td>
-                    <td>{vuln['line']}</td>
-                    <td style="font-family: 'Courier New', monospace; color: #dc2626;">{vuln['function']}</td>
-                    <td>{vuln['description'].replace('🔴', '').replace('🟠', '').replace('🟡', '').strip()}</td>
-                </tr>
-                """)
-        
-        return f"""
-        <div class="metric-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Sévérité</th>
-                        <th>Fichier</th>
-                        <th>Ligne</th>
-                        <th>Fonction</th>
-                        <th>Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(rows)}
-                </tbody>
-            </table>
-        </div>
-        """
-    
-    def _generate_dangerous_modules_section(self) -> str:
-        """Génère la section des modules dangereux"""
-        if not self.security or not self.security.dangerous_modules:
-            return ""
-        
-        # Trier les modules par nombre de vulnérabilités
-        modules_with_counts = []
-        for module, funcs in self.security.dangerous_modules.items():
-            vuln_count = len(self.security.get_module_vulnerabilities(module))
-            modules_with_counts.append((module, vuln_count, funcs))
-        
-        modules_with_counts.sort(key=lambda x: x[1], reverse=True)
-        
-        # Générer les cartes de modules
-        module_cards = []
-        for module, vuln_count, dangerous_funcs in modules_with_counts[:10]:  # Top 10
-            severity_class = 'danger' if vuln_count >= 3 else 'warning' if vuln_count >= 2 else ''
-            
-            # Obtenir les vulnérabilités pour ce module
-            vulns = self.security.get_module_vulnerabilities(module)
-            vuln_details = '<br>'.join([
-                f"• <code>{v['function']}</code> (ligne {v['line']})" 
-                for v in vulns[:5]
-            ])
-            if len(vulns) > 5:
-                vuln_details += f"<br><em>... et {len(vulns) - 5} autres</em>"
-            
-            module_cards.append(f"""
-            <div class="metric-table" style="margin-bottom: 20px;">
-                <div style="background: {'#fee2e2' if severity_class == 'danger' else '#fef3c7'}; padding: 20px; border-left: 4px solid {'#dc2626' if severity_class == 'danger' else '#f59e0b'};">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin: 0; font-family: 'Courier New', monospace; color: #1f2937;">
-                            🔴 {module}
-                        </h4>
-                        <span style="
-                            background: {'#dc2626' if severity_class == 'danger' else '#f59e0b'};
-                            color: white;
-                            padding: 4px 12px;
-                            border-radius: 12px;
-                            font-weight: bold;
-                            font-size: 0.9em;
-                        ">
-                            {vuln_count} vulnérabilité{'s' if vuln_count > 1 else ''}
-                        </span>
-                    </div>
-                    <div style="font-size: 0.9em; color: #374151; margin-top: 10px;">
-                        {vuln_details}
-                    </div>
-                </div>
-            </div>
-            """)
-        
-        return f"""
-        <div style="margin-top: 30px;">
-            <h3>🚨 Modules Dangereux ({len(modules_with_counts)})</h3>
-            <p style="color: #666; margin-bottom: 20px;">
-                Modules contenant des fonctions à risque ou des patterns de code vulnérables
-            </p>
-            {''.join(module_cards)}
-        </div>
-        """
-    
-    def _generate_attack_surface_section(self) -> str:
-        """Génère la section de surface d'attaque"""
-        if not self.attack_surface or not self.attack_surface.entry_points:
-            return ""
-        
-        return generate_attack_surface_section(self.attack_surface)
