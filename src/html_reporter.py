@@ -6,12 +6,13 @@ Crée une page web interactive pour visualiser les résultats de l'analyse
 import networkx as nx
 from datetime import datetime
 from pathlib import Path
+from src.attack_surface_html import generate_attack_surface_section
 
 
 class HTMLReporter:
     """Génère un rapport HTML complet de l'analyse"""
     
-    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None, security=None):
+    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None, security=None, attack_surface=None):
         """
         Initialise le générateur de rapport
         
@@ -22,6 +23,7 @@ class HTMLReporter:
             project_name: Nom du projet analysé
             external_deps: Ensemble des dépendances externes
             security: Analyseur de sécurité
+            attack_surface: Analyseur de surface d'attaque
         """
         self.graph = graph
         self.metrics = metrics
@@ -29,6 +31,7 @@ class HTMLReporter:
         self.project_name = project_name
         self.external_deps = external_deps or set()
         self.security = security
+        self.attack_surface = attack_surface
     
     def generate_report(self, output_file: str = "report.html", 
                        img_simple: str = "output_graph_simple.png",
@@ -426,6 +429,8 @@ class HTMLReporter:
             </div>
         </div>
         
+        {self._generate_attack_surface_section() if self.attack_surface and self.attack_surface.entry_points else ''}
+        
         <footer>
             <p>Généré par Code Dependency Analyzer | © 2025</p>
         </footer>
@@ -678,3 +683,10 @@ class HTMLReporter:
             {''.join(module_cards)}
         </div>
         """
+    
+    def _generate_attack_surface_section(self) -> str:
+        """Génère la section de surface d'attaque"""
+        if not self.attack_surface or not self.attack_surface.entry_points:
+            return ""
+        
+        return generate_attack_surface_section(self.attack_surface)

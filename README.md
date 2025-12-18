@@ -4,7 +4,7 @@ Outil d'analyse de dépendances pour projets Python avec détection de vulnérab
 
 ## Description
 
-Cet outil analyse les dépendances dans votre code Python, construit un graphe de dépendances, calcule des métriques pour identifier les points critiques de votre architecture, et **détecte automatiquement les vulnérabilités de sécurité**.
+Cet outil analyse les dépendances dans votre code Python, construit un graphe de dépendances, calcule des métriques pour identifier les points critiques de votre architecture, **détecte automatiquement les vulnérabilités de sécurité**, et **cartographie la surface d'attaque** en identifiant les chemins critiques accessibles depuis l'extérieur.
 
 ## Fonctionnalités
 
@@ -26,6 +26,13 @@ Cet outil analyse les dépendances dans votre code Python, construit un graphe d
 - **Injection de commandes** : Détection de `subprocess` avec `shell=True`
 - **Modules à risque** : Identification automatique des fichiers vulnérables
 - **Rapport de sécurité** : Statistiques par sévérité (Critique, Élevé, Moyen)
+
+### 🎯 Attack Surface Mapping
+- **Détection automatique des points d'entrée** : Routes HTTP, API endpoints (Flask, FastAPI, Django)
+- **Calcul des distances** : Nombre de sauts depuis l'extérieur vers les modules critiques
+- **Évaluation des risques** : Classification CRITIQUE/ÉLEVÉ/MOYEN/FAIBLE
+- **Chemins d'attaque** : Identification des routes exposant des fonctions dangereuses
+- **Visualisation** : Tableau interactif des risques avec color-coding
 
 ### Visualisations
 - **Graphes PNG** : Images statiques haute résolution
@@ -82,8 +89,10 @@ code_dependency_analyzer/
 │   ├── metrics.py         # Calcul des métriques
 │   ├── visualizer.py      # Génération des graphes
 │   ├── git_manager.py     # Clonage automatique
-│   ├── security_analyzer.py  # Analyse de sécurité
-│   └── html_reporter.py   # Génération du rapport
+│   ├── security_analyzer.py    # Analyse de sécurité
+│   ├── attack_surface.py       # Attack Surface Mapping
+│   ├── attack_surface_html.py  # Génération HTML surface d'attaque
+│   └── html_reporter.py        # Génération du rapport
 │
 └── input_data/            # Projets clonés (auto)
 ```
@@ -143,6 +152,14 @@ Générez automatiquement l'architecture :
 # Utilisez les graphes PNG pour la documentation
 ```
 
+### 5. Analyse de Surface d'Attaque
+Identifiez les endpoints exposant des modules critiques :
+```bash
+python main.py /path/to/web/app
+# Ouvrez report.html → Section "Attack Surface Mapping"
+# Voir les routes avec risque CRITIQUE
+```
+
 ## Graphe Interactif
 
 Le graphe interactif (`graph_interactive.html`) offre :
@@ -154,34 +171,45 @@ Le graphe interactif (`graph_interactive.html`) offre :
 
 ## Exemple de Sortie
 
+> **Note** : Les valeurs ci-dessous sont des exemples génériques. Les métriques réelles (nombre de fichiers, modules, vulnérabilités, etc.) dépendent du projet analysé.
+
 ```
 Analyseur de Dépendances de Code
 ==================================================
 
 ÉTAPE 1/4 : Clonage du dépôt
 --------------------------------------------------
-✅ Dépôt cloné : input_data/flask-todolist
+✅ Dépôt cloné : input_data/<nom-du-projet>
 
 ÉTAPE 2/4 : Analyse du code source (AST)
 --------------------------------------------------
-✅ 25 fichiers Python analysés
-   Dépendances externes uniques : 15
+✅ X fichiers Python analysés
+   Dépendances externes uniques : N
 
 Analyse de sécurité
 --------------------------------------------------
 ✅ Analyse de sécurité terminée
-   ⚠️  3 vulnérabilités potentielles détectées
-      Critiques: 1
-      Élevées: 2
-      Moyennes: 0
+   ⚠️  Y vulnérabilités potentielles détectées
+      Critiques: A
+      Élevées: B
+      Moyennes: C
+
+Analyse de surface d'attaque
+--------------------------------------------------
+✅ Surface d'attaque calculée
+   🌐 Points d'entrée détectés : P
+   📍 Modules exposés : M
+   ⚠️  Chemins critiques : K
+      Risque CRITIQUE : ...
+      Risque ÉLEVÉ : ...
 
 ÉTAPE 3/4 : Construction du graphe
 --------------------------------------------------
 ✅ Graphe construit avec succès
-   • Nœuds (modules) : 25
-   • Arêtes (dépendances) : 18
-   • Est un DAG : ✅ Oui
-   • Cycles détectés : 0
+   • Nœuds (modules) : X
+   • Arêtes (dépendances) : Y
+   • Est un DAG : ✅ Oui / ❌ Non
+   • Cycles détectés : Z
 
 ÉTAPE 4/4 : Calcul des métriques
 --------------------------------------------------
@@ -224,12 +252,3 @@ MIT
 ## Contribution
 
 Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une PR.
-
-## Roadmap
-
-- [ ] Attack Surface Mapping (détection des points d'entrée)
-- [ ] Taint Analysis basique (tracking Source → Sink)
-- [ ] Export des résultats en JSON/CSV
-- [ ] Support multi-langages (JavaScript, TypeScript)
-- [ ] Intégration CI/CD (GitHub Actions)
-- [ ] API REST pour analyse à distance
