@@ -65,11 +65,16 @@
             <div class="card">
                 <h3>Rapport d'Analyse</h3>
                 <p style="color: #64748b; margin-bottom: 20px;">
-                    L'analyse est terminée. Consultez le rapport détaillé ci-dessous.
+                    L'analyse est terminée. Consultez le rapport détaillé ou obtenez des suggestions IA interactives.
                 </p>
-                <a href="/report/{{ analysis.id }}" target="_blank" class="btn btn-primary btn-lg">
-                    Ouvrir le Rapport Complet
-                </a>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <a href="/report/{{ analysis.id }}" target="_blank" class="btn btn-primary btn-lg">
+                        📄 Rapport Complet
+                    </a>
+                    <a href="/analysis/{{ analysis.id }}/ai-suggestions" class="btn btn-secondary btn-lg">
+                        🤖 Suggestions IA Interactives
+                    </a>
+                </div>
             </div>
         {% elif analysis.status == 'running' %}
             <div class="card">

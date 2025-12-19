@@ -4,6 +4,7 @@ import threading
 import subprocess
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +15,18 @@ app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
 DATABASE = 'analyses.db'
 REPORTS_DIR = Path('web_reports')
 REPORTS_DIR.mkdir(exist_ok=True)
+
+# Agent IA (lazy loading - sera initialisé au premier appel)
+_ai_advisor = None
+
+def get_ai_advisor():
+    """Retourne l'agent IA (lazy loading)"""
+    global _ai_advisor
+    if _ai_advisor is None:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from src.ai_advisor import AIAdvisor
+        _ai_advisor = AIAdvisor(provider="auto")
+    return _ai_advisor
 
 def init_db():
     """Initialise la base de données"""
@@ -52,6 +65,8 @@ def run_analysis(analysis_id, repo_url):
     c = conn.cursor()
     
     try:
+        print(f"🔄 Démarrage de l'analyse {analysis_id} pour {repo_url}")
+        
         # Mettre à jour le statut
         c.execute('UPDATE analyses SET status = ? WHERE id = ?', ('running', analysis_id))
         conn.commit()
@@ -59,38 +74,64 @@ def run_analysis(analysis_id, repo_url):
         # Créer un dossier pour cette analyse
         analysis_dir = REPORTS_DIR / f'analysis_{analysis_id}'
         analysis_dir.mkdir(exist_ok=True)
+        print(f"📁 Dossier créé: {analysis_dir}")
         
         # Chemin vers le script main.py (un niveau au-dessus de web_ui)
         main_script = Path(__file__).parent.parent / 'main.py'
+        project_root = Path(__file__).parent.parent
+        
+        print(f"🐍 Script: {main_script}")
+        print(f"📂 Workdir: {project_root}")
+        
+        if not main_script.exists():
+            raise FileNotFoundError(f"Script main.py introuvable: {main_script}")
         
         # Lancer l'analyse
-        result = subprocess.run(
+        print(f"▶️  Lancement: python3 {main_script} {repo_url}")
+        
+        # Utiliser Popen pour voir la progression en temps réel
+        process = subprocess.Popen(
             ['python3', str(main_script), repo_url],
-            cwd=str(Path(__file__).parent.parent),  # Exécuter depuis la racine du projet
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minutes max
+            cwd=str(project_root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
         
-        if result.returncode == 0:
+        # Attendre avec un timeout
+        try:
+            stdout, stderr = process.communicate(timeout=1200)  # 20 minutes max pour gros projets
+            result_returncode = process.returncode
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+            raise subprocess.TimeoutExpired(process.args, 1200)
+        
+        print(f"✅ Analyse terminée avec code: {result_returncode}")
+        
+        if result_returncode == 0:
             # Déplacer les fichiers générés
-            project_root = Path(__file__).parent.parent
+            files_moved = []
             for file in ['report.html', 'output_graph_simple.png', 'output_graph_metrics.png', 'graph_interactive.html']:
                 src = project_root / file
                 if src.exists():
                     dst = analysis_dir / file
                     src.rename(dst)
+                    files_moved.append(file)
+                    print(f"📦 Déplacé: {file}")
+            
+            if not files_moved:
+                raise Exception("Aucun fichier généré par l'analyse")
             
             # Extraire les métriques du rapport si possible
             report_path = analysis_dir / 'report.html'
             
             # Parser les résultats (basique - on pourrait améliorer)
-            output = result.stdout
             modules = 0
             deps = 0
             
             # Extraction basique des métriques depuis stdout
-            for line in output.split('\n'):
+            for line in stdout.split('\n'):
                 if 'Nœuds (modules)' in line:
                     try:
                         modules = int(line.split(':')[1].strip())
@@ -107,29 +148,38 @@ def run_analysis(analysis_id, repo_url):
                 SET status = ?, completed_at = ?, total_modules = ?, total_dependencies = ?, report_path = ?
                 WHERE id = ?
             ''', ('completed', datetime.now(), modules, deps, str(report_path), analysis_id))
+            print(f"✅ Analyse {analysis_id} terminée avec succès")
         else:
+            error_msg = stderr[:500] if stderr else "Erreur inconnue"
+            print(f"❌ Erreur analyse {analysis_id}: {error_msg}")
             c.execute('''
                 UPDATE analyses 
                 SET status = ?, completed_at = ?, error_message = ?
                 WHERE id = ?
-            ''', ('failed', datetime.now(), result.stderr[:500], analysis_id))
+            ''', ('failed', datetime.now(), error_msg, analysis_id))
         
         conn.commit()
     
     except subprocess.TimeoutExpired:
+        error_msg = 'Timeout: analyse trop longue (>20min)'
+        print(f"⏱️  {error_msg}")
         c.execute('''
             UPDATE analyses 
             SET status = ?, error_message = ?
             WHERE id = ?
-        ''', ('failed', 'Timeout: analyse trop longue (>5min)', analysis_id))
+        ''', ('failed', error_msg, analysis_id))
         conn.commit()
     
     except Exception as e:
+        error_msg = str(e)[:500]
+        print(f"💥 Erreur analyse {analysis_id}: {error_msg}")
+        import traceback
+        traceback.print_exc()
         c.execute('''
             UPDATE analyses 
             SET status = ?, error_message = ?
             WHERE id = ?
-        ''', ('failed', str(e)[:500], analysis_id))
+        ''', ('failed', error_msg, analysis_id))
         conn.commit()
     
     finally:
@@ -166,6 +216,57 @@ def view_analysis(analysis_id):
         return "Analyse non trouvée", 404
     
     return render_template('analysis.html', analysis=analysis)
+
+@app.route('/analysis/<int:analysis_id>/ai-suggestions')
+def view_ai_suggestions(analysis_id):
+    """Voir les suggestions IA pour une analyse"""
+    conn = get_db()
+    c = conn.cursor()
+    analysis = c.execute('SELECT * FROM analyses WHERE id = ?', (analysis_id,)).fetchone()
+    conn.close()
+    
+    if not analysis:
+        return "Analyse non trouvée", 404
+    
+    return render_template('ai_suggestions.html', analysis=analysis)
+
+@app.route('/api/analysis/<int:analysis_id>/issues')
+def get_analysis_issues(analysis_id):
+    """Récupère tous les problèmes (vulnérabilités + cycles) d'une analyse"""
+    conn = get_db()
+    c = conn.cursor()
+    analysis = c.execute('SELECT report_path FROM analyses WHERE id = ?', (analysis_id,)).fetchone()
+    conn.close()
+    
+    if not analysis or not analysis['report_path']:
+        return jsonify({'error': 'Analyse non trouvée'}), 404
+    
+    # Charger le rapport HTML et extraire les problèmes
+    report_path = Path(analysis['report_path'])
+    if not report_path.exists():
+        return jsonify({'error': 'Rapport introuvable'}), 404
+    
+    try:
+        # Lire le rapport HTML
+        with open(report_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Extraire le script JSON (si présent dans le rapport)
+        import re
+        # Chercher le script ai-issues dans le HTML
+        match = re.search(r'<script id="ai-issues" type="application/json">\s*(.*?)\s*</script>', content, re.DOTALL)
+        
+        if match:
+            issues_json = match.group(1)
+            issues = json.loads(issues_json)
+            return jsonify({'issues': issues})
+        else:
+            # Si pas de script, retourner vide
+            return jsonify({'issues': []})
+    
+    except Exception as e:
+        print(f"Erreur lors du chargement des problèmes: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/start-analysis', methods=['POST'])
 def start_analysis():
@@ -288,6 +389,64 @@ def serve_report(analysis_id):
     content = content.replace('href="graph_interactive.html"', f'href="/analysis/{analysis_id}/file/graph_interactive.html"')
     
     return content
+
+@app.route('/api/ai-advisor/status')
+def ai_advisor_status():
+    """Retourne le statut de l'agent IA"""
+    info = get_ai_advisor().get_provider_info()
+    return jsonify(info)
+
+@app.route('/api/ai-advisor/suggest', methods=['POST'])
+def ai_advisor_suggest():
+    """Génère une suggestion pour un problème (vulnérabilité ou cycle)"""
+    data = request.json
+    
+    ai = get_ai_advisor()
+    if not ai.is_available():
+        return jsonify({
+            'error': 'Aucun provider IA configuré',
+            'message': 'Configurez OPENAI_API_KEY ou ANTHROPIC_API_KEY dans les variables d\'environnement, ou installez Ollama localement.'
+        }), 503
+    
+    issue = data.get('issue', {})
+    
+    try:
+        suggestion = ai.get_vulnerability_suggestion(issue)
+        return jsonify({
+            'success': True,
+            'suggestion': suggestion
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'message': 'Erreur lors de la génération de la suggestion'
+        }), 500
+
+@app.route('/api/ai-advisor/batch-suggest', methods=['POST'])
+def ai_advisor_batch_suggest():
+    """Génère des suggestions pour plusieurs problèmes"""
+    data = request.json
+    
+    ai = get_ai_advisor()
+    if not ai.is_available():
+        return jsonify({
+            'error': 'Aucun provider IA configuré',
+            'message': 'Configurez OPENAI_API_KEY ou ANTHROPIC_API_KEY dans les variables d\'environnement, ou installez Ollama localement.'
+        }), 503
+    
+    issues = data.get('issues', [])
+    
+    try:
+        suggestions = ai.get_batch_suggestions(issues)
+        return jsonify({
+            'success': True,
+            'suggestions': suggestions
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'message': 'Erreur lors de la génération des suggestions'
+        }), 500
 
 if __name__ == '__main__':
     import os

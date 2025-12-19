@@ -1,0 +1,17 @@
+# Configuration pour le mode développement
+version: '3.8'
+
+services:
+  web-ui:
+    build:
+      context: .
+      dockerfile: web_ui/Dockerfile
+    volumes:
+      # Monter le code source pour le hot-reload
+      - ./src:/app/src
+      - ./web_ui:/app/web_ui
+      - ./main.py:/app/main.py
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: ["python", "-u", "app.py"]

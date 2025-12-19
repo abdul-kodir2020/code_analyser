@@ -241,3 +241,10 @@ class SecurityAnalyzer:
     def get_module_vulnerabilities(self, module_name: str) -> List[Dict]:
         """Retourne les vulnérabilités d'un module spécifique"""
         return self.vulnerabilities.get(module_name, [])
+    
+    def get_all_vulnerabilities(self) -> List[Dict]:
+        """Retourne toutes les vulnérabilités détectées"""
+        all_vulns = []
+        for module_vulns in self.vulnerabilities.values():
+            all_vulns.extend(module_vulns)
+        return all_vulns

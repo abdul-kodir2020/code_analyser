@@ -17,6 +17,7 @@ Cet outil analyse les dépendances dans votre code Python, construit un graphe d
 - **Suivi en temps réel** : Statut des analyses (en cours, terminé, échec)
 - **Dashboard moderne** : Design responsive avec gradient violet
 - **Gestion d'analyses** : Supprimer, consulter, comparer les résultats
+- **🤖 Suggestions IA** : Agent intelligent pour corriger automatiquement les vulnérabilités
 
 ### Analyse de Code
 - Parsing AST : Analyse complète du code source Python
@@ -296,6 +297,44 @@ Ouvrez report.html dans votre navigateur !
 - **PyVis** - Graphes interactifs
 - **AST** - Parsing du code Python
 - **Git** - Clonage automatique de repos
+- **🤖 AI Advisors** - OpenAI GPT-4, Claude, Ollama (optionnel)
+
+## 🤖 Agent IA (Nouveauté)
+
+L'outil intègre un agent IA capable de générer automatiquement des suggestions pour corriger les vulnérabilités détectées.
+
+### Fonctionnalités
+- 📋 **Explication détaillée** de chaque vulnérabilité
+- ✅ **Code corrigé** prêt à copier-coller
+- 🔧 **Étapes de correction** numérotées et détaillées
+- 🎯 **Support multi-providers** : OpenAI, Claude, Ollama
+
+### Configuration Rapide
+
+**Option 1 : OpenAI (Recommandé)**
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**Option 2 : Claude**
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+**Option 3 : Ollama (Gratuit, Local)**
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull llama3.2
+ollama serve
+```
+
+### Utilisation
+
+1. **Interface Web** : Cliquez sur "🤖 Suggestions IA" après une analyse
+2. **API** : `POST /api/ai-advisor/suggest` avec la vulnérabilité
+3. **Test** : `python3 test_ai_advisor.py`
+
+📖 **Documentation complète** : Voir [AI_ADVISOR_GUIDE.md](AI_ADVISOR_GUIDE.md)
 
 ## 🎯 Roadmap
 
@@ -304,6 +343,7 @@ Ouvrez report.html dans votre navigateur !
 - [x] Attack Surface Mapping
 - [x] Interface Web
 - [x] Historique des analyses
+- [x] 🤖 Agent IA pour suggestions de corrections
 - [ ] Comparaison entre analyses
 - [ ] Export JSON/CSV/SARIF
 - [ ] Authentification utilisateur
@@ -316,6 +356,7 @@ Ouvrez report.html dans votre navigateur !
 
 - [Guide Interface Web](web_ui/README.md) - Documentation détaillée de l'interface web
 - [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) - Guide complet des fonctionnalités web
+- [AI_ADVISOR_GUIDE.md](AI_ADVISOR_GUIDE.md) - 🤖 Configuration et utilisation de l'agent IA
 
 ## Licence
 

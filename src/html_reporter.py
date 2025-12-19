@@ -4,6 +4,8 @@ Crée une page web dashboard interactive
 """
 
 import networkx as nx
+import json
+import os
 from datetime import datetime
 from pathlib import Path
 from src.attack_surface_html import generate_attack_surface_section
@@ -12,7 +14,7 @@ from src.attack_surface_html import generate_attack_surface_section
 class HTMLReporter:
     """Génère un rapport HTML complet en mode dashboard avec onglets"""
     
-    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None, security=None, attack_surface=None):
+    def __init__(self, graph: nx.DiGraph, metrics: dict, graph_info: dict, project_name: str, external_deps: set = None, security=None, attack_surface=None, project_path=None):
         self.graph = graph
         self.metrics = metrics
         self.graph_info = graph_info
@@ -20,6 +22,16 @@ class HTMLReporter:
         self.external_deps = external_deps or set()
         self.security = security
         self.attack_surface = attack_surface
+        self.project_path = Path(project_path) if project_path else None
+        
+        # Créer un mapping module_name -> file_path pour extraction de code
+        self.module_to_file = {}
+        for node_name, data in self.graph.nodes(data=True):
+            if 'file' in data:
+                self.module_to_file[node_name] = data['file']
+        
+        # Cache pour éviter de relire les mêmes fichiers
+        self._file_cache = {}
     
     def generate_report(self, output_file: str = "report.html", 
                        img_simple: str = "output_graph_simple.png",
@@ -47,6 +59,7 @@ class HTMLReporter:
         attack_tab = self._generate_attack_surface_tab() if attack_summary else ""
         deps_tab = self._generate_dependencies_tab()
         graphs_tab = self._generate_graphs_tab(img_simple, img_metrics, interactive_graph)
+        ai_tab = self._generate_ai_suggestions_tab() if self.security else ""
         
         return f"""<!DOCTYPE html>
 <html lang="fr">
@@ -81,6 +94,10 @@ class HTMLReporter:
                     <span class="nav-tab-icon">🎯</span>
                     <span>Attack Surface</span>
                 </div>''' if attack_summary else ''}
+                {f'''<div class="nav-tab" data-tab="ai-suggestions">
+                    <span class="nav-tab-icon">🤖</span>
+                    <span>Suggestions IA</span>
+                </div>''' if self.security else ''}
                 <div class="nav-tab" data-tab="dependencies">
                     <span class="nav-tab-icon">🔗</span>
                     <span>Dépendances</span>
@@ -104,6 +121,8 @@ class HTMLReporter:
             {f'<div id="security" class="tab-content">{security_tab}</div>' if self.security else ''}
             
             {f'<div id="attack-surface" class="tab-content">{attack_tab}</div>' if attack_summary else ''}
+            
+            {f'<div id="ai-suggestions" class="tab-content">{ai_tab}</div>' if self.security else ''}
             
             <div id="dependencies" class="tab-content">
                 {deps_tab}
@@ -430,6 +449,123 @@ class HTMLReporter:
             transform: scale(1.05);
         }
         
+        /* AI Suggestions */
+        .ai-suggestion-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .ai-vulnerability-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .ai-vulnerability-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--text);
+        }
+        
+        .ai-severity-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        
+        .ai-severity-CRITIQUE {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .ai-severity-ÉLEVÉ {
+            background: #fef3c7;
+            color: #d97706;
+        }
+        
+        .ai-severity-MOYEN {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+        
+        .ai-suggestion-section {
+            margin: 15px 0;
+        }
+        
+        .ai-suggestion-section h4 {
+            font-size: 1em;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+        
+        .ai-code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        
+        body.dark-theme .ai-code-block {
+            background: #0d0d0d;
+        }
+        
+        .ai-steps-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .ai-steps-list li {
+            padding: 10px 15px;
+            margin: 8px 0;
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+        }
+        
+        .ai-copy-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .ai-copy-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .spinner {
+            border: 4px solid rgba(102, 126, 234, 0.3);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
@@ -470,19 +606,11 @@ class HTMLReporter:
             }
             
             // Activer le nav-tab correspondant
-            const selectedNav = document.querySelector(`[data-tab="${tabId}"]`);
+            const selectedNav = document.querySelector('[data-tab="' + tabId + '"]');
             if (selectedNav) {
                 selectedNav.classList.add('active');
             }
         }
-        
-        // Gestionnaire de clics sur les nav-tabs
-        document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                const tabId = this.getAttribute('data-tab');
-                showTab(tabId);
-            });
-        });
         
         // Toggle de thème
         function toggleTheme() {
@@ -500,14 +628,25 @@ class HTMLReporter:
             }
         }
         
-        // Charger le thème sauvegardé
-        window.addEventListener('DOMContentLoaded', () => {
+        // Initialisation au chargement de la page
+        window.addEventListener('DOMContentLoaded', function() {
+            // Gestionnaire de clics sur les nav-tabs
+            document.querySelectorAll('.nav-tab').forEach(function(tab) {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    showTab(tabId);
+                });
+            });
+            
+            // Charger le thème sauvegardé
             const savedTheme = localStorage.getItem('theme');
             const button = document.getElementById('themeToggle');
             
             if (savedTheme === 'dark') {
                 document.body.classList.add('dark-theme');
-                button.innerHTML = '☀️ Mode Clair';
+                if (button) {
+                    button.innerHTML = '☀️ Mode Clair';
+                }
             }
         });
     </script>"""
@@ -781,6 +920,121 @@ class HTMLReporter:
             </div>
         </div>
         """
+    
+    def _generate_ai_suggestions_tab(self):
+        """Génère l'onglet suggestions IA"""
+        # Extraire les problèmes pour l'API (script JSON caché)
+        issues = []
+        
+        # 1. Ajouter les vulnérabilités de sécurité (limité à 10 pour performance)
+        if self.security:
+            all_vulns = self.security.get_all_vulnerabilities()
+            for vuln in all_vulns[:10]:  # Limiter à 10 pour performance
+                # Extraire le code source avec cache
+                code_snippet = self._extract_code_snippet(vuln.get('module', ''), vuln.get('line', 0))
+                
+                issues.append({
+                    'category': 'security',
+                    'type': vuln.get('type', 'Unknown'),
+                    'severity': vuln.get('severity', 'MOYEN'),
+                    'description': vuln.get('description', ''),
+                    'module': vuln.get('module', ''),
+                    'line': vuln.get('line', 0),
+                    'code': code_snippet
+                })
+        
+        # 2. Ajouter les dépendances circulaires - DÉSACTIVÉ pour performance
+        # La détection de cycles est trop lente sur gros graphes
+        # Les cycles sont déjà affichés dans l'onglet Dépendances
+        
+        issues_json = json.dumps(issues, ensure_ascii=False)
+        
+        return f"""
+        <div class="section-card" style="text-align: center; padding: 60px 40px;">
+            <div style="font-size: 4em; margin-bottom: 20px;">🤖</div>
+            <h2 style="margin-bottom: 15px;">Suggestions IA Interactives</h2>
+            <p style="color: #64748b; font-size: 1.1em; margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                Les suggestions IA avec génération dynamique sont disponibles dans l'interface web interactive.
+            </p>
+            
+            <div class="alert alert-info" style="max-width: 700px; margin: 0 auto 30px auto; text-align: left;">
+                <strong>🌐 Interface Web</strong><br>
+                Pour obtenir des suggestions IA en temps réel avec OpenAI, Claude ou Ollama :
+                <ol style="margin-top: 10px; margin-bottom: 0;">
+                    <li>Lancez l'interface web : <code>cd web_ui && python app.py</code></li>
+                    <li>Ouvrez <code>http://localhost:5000</code> dans votre navigateur</li>
+                    <li>Analysez votre projet</li>
+                    <li>Cliquez sur "🤖 Suggestions IA Interactives"</li>
+                </ol>
+            </div>
+            
+            <div style="background: var(--card-bg); border: 2px solid var(--border); border-radius: 12px; padding: 25px; max-width: 700px; margin: 0 auto; text-align: left;">
+                <h3 style="margin-bottom: 15px;">✨ Fonctionnalités disponibles dans l'interface web :</h3>
+                <ul style="line-height: 2; color: #64748b;">
+                    <li>🔒 Suggestions pour les vulnérabilités de sécurité</li>
+                    <li>🔄 Suggestions pour les dépendances circulaires</li>
+                    <li>✅ Code corrigé généré automatiquement</li>
+                    <li>📋 Étapes de correction détaillées</li>
+                    <li>📥 Copie du code en un clic</li>
+                    <li>🤖 Support OpenAI GPT-4, Claude 3.5, ou Ollama (local)</li>
+                </ul>
+            </div>
+            
+            <p style="color: #94a3b8; margin-top: 30px; font-size: 0.95em;">
+                💡 Consultez <code>AI_ADVISOR_GUIDE.md</code> et <code>OLLAMA_DOCKER_SETUP.md</code> pour configurer l'IA
+            </p>
+        </div>
+        
+        <!-- Script JSON caché pour l'API -->
+        <script id="ai-issues" type="application/json">
+        {issues_json}
+        </script>
+        """
+    
+    def _extract_code_snippet(self, module_name: str, line_number: int, context_lines: int = 2) -> str:
+        """Extrait un snippet de code autour d'une ligne donnée"""
+        if not module_name or line_number <= 0:
+            return ""
+        
+        try:
+            # module_name peut être un chemin relatif comme "src/mymodule.py" ou "Word_Jumble/word_jumble.py"
+            # Essayer de trouver le fichier correspondant
+            file_path = None
+            
+            # 1. Essayer directement si c'est un chemin absolu
+            if os.path.exists(module_name):
+                file_path = module_name
+            # 2. Essayer avec project_path si disponible
+            elif self.project_path:
+                candidate = self.project_path / module_name
+                if candidate.exists():
+                    file_path = str(candidate)
+            # 3. Chercher dans module_to_file par correspondance partielle
+            if not file_path:
+                for node_name, node_file in self.module_to_file.items():
+                    if module_name in node_file or node_file.endswith(module_name):
+                        file_path = node_file
+                        break
+            
+            if not file_path or not os.path.exists(file_path):
+                return ""  # Retourner vide au lieu d'un message d'erreur
+            
+            # Utiliser le cache pour éviter de relire le même fichier
+            if file_path not in self._file_cache:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    self._file_cache[file_path] = f.readlines()
+            
+            lines = self._file_cache[file_path]
+            
+            # Extraire les lignes avec contexte
+            start_line = max(0, line_number - context_lines - 1)
+            end_line = min(len(lines), line_number + context_lines)
+            
+            snippet_lines = lines[start_line:end_line]
+            return ''.join(snippet_lines).strip()
+        
+        except Exception as e:
+            return ""  # Retourner vide en cas d'erreur
     
     def _generate_cycles_section(self):
         """Génère la section des cycles"""

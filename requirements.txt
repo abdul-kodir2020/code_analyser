@@ -6,3 +6,13 @@ pyvis>=0.3.0
 # Utilitaires
 colorama>=0.4.6
 flask>=3.0.0
+
+# Agent IA (optionnel - au moins un provider requis)
+# Pour OpenAI :
+# openai>=1.0.0
+
+# Pour Claude :
+# anthropic>=0.8.0
+
+# Requests pour les appels API
+requests>=2.31.0

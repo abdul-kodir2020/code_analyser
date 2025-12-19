@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suggestions IA - {{ analysis.project_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">Code Analyzer</h1>
+            <div class="nav-links">
+                <a href="/">Nouvelle Analyse</a>
+                <a href="/history">Historique</a>
+            </div>
+        </div>
+    </nav>
+    
+    <button id="themeToggle" onclick="toggleTheme()">🌙 Mode Sombre</button>
+
+    <main class="container main-content">
+        <div class="page-header">
+            <h2>🤖 Suggestions IA pour {{ analysis.project_name }}</h2>
+            <p>Corrections suggérées par l'intelligence artificielle</p>
+        </div>
+
+        <div id="aiStatus" class="section-card"></div>
+
+        <div id="suggestionsContainer"></div>
+
+        <div id="loading" style="text-align: center; padding: 40px; display: none;">
+            <div class="spinner"></div>
+            <p>Génération des suggestions en cours...</p>
+        </div>
+    </main>
+
+    <style>
+        .suggestion-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #667eea;
+        }
+
+        .vulnerability-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .vulnerability-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .severity-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .severity-CRITIQUE {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .severity-ÉLEVÉ {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .severity-MOYEN {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+
+        .suggestion-section {
+            margin: 20px 0;
+        }
+
+        .suggestion-section h3 {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        body.dark-theme .code-block {
+            background: #0d0d0d;
+        }
+
+        .steps-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .steps-list li {
+            padding: 10px 15px;
+            margin: 8px 0;
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+        }
+
+        .copy-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 10px;
+            transition: transform 0.2s;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-lg {
+            padding: 12px 24px;
+            font-size: 16px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(102, 126, 234, 0.3);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-info {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            color: #1e40af;
+        }
+
+        .alert-warning {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            border-left: 4px solid #dc2626;
+            color: #991b1b;
+        }
+
+        body.dark-theme .alert-info {
+            background: #1e3a5f;
+            color: #93c5fd;
+        }
+
+        body.dark-theme .alert-warning {
+            background: #4a3910;
+            color: #fbbf24;
+        }
+
+        body.dark-theme .alert-error {
+            background: #4a1a1a;
+            color: #fca5a5;
+        }
+    </style>
+
+    <script>
+        const analysisId = parseInt('{{ analysis.id }}');
+        let vulnerabilities = [];
+        let allIssues = [];  // Stocker tous les issues ici
+
+        async function checkAIStatus() {
+            try {
+                const response = await fetch('/api/ai-advisor/status');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('aiStatus');
+                
+                if (data.available) {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-info">
+                            <strong>🤖 Agent IA actif</strong><br>
+                            Provider: ${data.provider} | Modèle: ${data.model}
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>⚠️ Agent IA non configuré</strong><br>
+                            Pour activer les suggestions IA, configurez une des options suivantes :<br>
+                            • <code>OPENAI_API_KEY</code> - Pour utiliser GPT-4<br>
+                            • <code>ANTHROPIC_API_KEY</code> - Pour utiliser Claude<br>
+                            • Installez <a href="https://ollama.ai" target="_blank">Ollama</a> pour un modèle local gratuit
+                        </div>
+                    `;
+                    return false;
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('Erreur lors de la vérification du statut IA:', error);
+                return false;
+            }
+        }
+
+        async function loadIssues() {
+            try {
+                // Charger les problèmes depuis l'API
+                const response = await fetch(`/api/analysis/${analysisId}/issues`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Erreur API:', data.error);
+                    return [];
+                }
+                
+                return data.issues || [];
+            } catch (error) {
+                console.error('Erreur lors du chargement des problèmes:', error);
+                return [];
+            }
+        }
+
+        async function getSuggestion(issue) {
+            try {
+                const response = await fetch('/api/ai-advisor/suggest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ issue })
+                });
+                
+                // Vérifier si la réponse est OK
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+                }
+                
+                // Vérifier si le contenu est du JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Réponse non-JSON:', text);
+                    throw new Error('La réponse du serveur n\'est pas au format JSON');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    return data.suggestion;
+                } else {
+                    throw new Error(data.message || 'Erreur inconnue');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la génération de suggestion:', error);
+                throw error;
+            }
+        }
+
+        function copyCode(elementId) {
+            const code = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code copié dans le presse-papiers !');
+            }).catch(err => {
+                console.error('Erreur lors de la copie:', err);
+                alert('Erreur lors de la copie du code');
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        let suggestionCounter = 0;
+
+        function renderSuggestion(issue, suggestion) {
+            const isCircular = issue.category === 'circular_dependency';
+            const icon = isCircular ? '🔄' : '🔒';
+            
+            const fixCodeId = `fix-code-${suggestionCounter++}`;
+            const fixCodeHtml = suggestion.fix_code 
+                ? `<div class="suggestion-section">
+                        <h3>✅ Code corrigé</h3>
+                        <pre class="code-block" id="${fixCodeId}">${escapeHtml(suggestion.fix_code)}</pre>
+                        <button class="copy-btn" onclick="copyCode('${fixCodeId}')">
+                            📋 Copier le code
+                        </button>
+                    </div>`
+                : '';
+            
+            const stepsHtml = suggestion.steps && suggestion.steps.length > 0
+                ? `<div class="suggestion-section">
+                        <h3>🔧 Étapes de correction</h3>
+                        <ol class="steps-list">
+                            ${suggestion.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
+                        </ol>
+                    </div>`
+                : '';
+
+            let headerInfo = '';
+            let codeSection = '';
+            
+            if (isCircular) {
+                headerInfo = `
+                    <div>
+                        <div class="vulnerability-title">${icon} ${escapeHtml(issue.type)}</div>
+                        <div style="color: var(--text-light); margin-top: 5px;">
+                            Cycle ${issue.cycle_number} : ${issue.modules.length} modules impliqués
+                        </div>
+                    </div>
+                `;
+                codeSection = `
+                    <div class="suggestion-section">
+                        <h3>🔄 Chemin de la dépendance circulaire</h3>
+                        <pre class="code-block">${escapeHtml(issue.cycle_path)}</pre>
+                    </div>
+                `;
+            } else {
+                headerInfo = `
+                    <div>
+                        <div class="vulnerability-title">${icon} ${escapeHtml(issue.type)}</div>
+                        <div style="color: var(--text-light); margin-top: 5px;">
+                            ${escapeHtml(issue.module)} : ligne ${issue.line}
+                        </div>
+                    </div>
+                `;
+                codeSection = `
+                    <div class="suggestion-section">
+                        <h3>❌ Code problématique</h3>
+                        <pre class="code-block">${escapeHtml(issue.code)}</pre>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="suggestion-card">
+                    <div class="vulnerability-header">
+                        ${headerInfo}
+                        <span class="severity-badge severity-${escapeHtml(issue.severity)}">
+                            ${escapeHtml(issue.severity)}
+                        </span>
+                    </div>
+
+                    <div class="suggestion-section">
+                        <h3>📋 Explication</h3>
+                        <p>${escapeHtml(suggestion.explanation)}</p>
+                    </div>
+
+                    ${codeSection}
+                    ${fixCodeHtml}
+                    ${stepsHtml}
+                </div>
+            `;
+        }
+
+        async function generateSuggestions() {
+            const aiAvailable = await checkAIStatus();
+            
+            if (!aiAvailable) {
+                return;
+            }
+
+            const issues = await loadIssues();
+            
+            if (issues.length === 0) {
+                document.getElementById('suggestionsContainer').innerHTML = `
+                    <div class="alert alert-info">
+                        <strong>✅ Aucun problème détecté</strong><br>
+                        Ce projet ne présente pas de vulnérabilités ou de dépendances circulaires.
+                    </div>
+                `;
+                return;
+            }
+
+            // Compter les catégories
+            const securityCount = issues.filter(i => i.category === 'security').length;
+            const circularCount = issues.filter(i => i.category === 'circular_dependency').length;
+
+            const container = document.getElementById('suggestionsContainer');
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    <strong>🔍 Problèmes détectés : ${issues.length}</strong><br>
+                    ${securityCount > 0 ? `🔒 Vulnérabilités de sécurité : ${securityCount}<br>` : ''}
+                    ${circularCount > 0 ? `🔄 Dépendances circulaires : ${circularCount}` : ''}
+                    <br><br>
+                    💡 Cliquez sur "Générer suggestion" pour obtenir une correction IA pour chaque problème.
+                </div>
+            `;
+
+            // Afficher tous les problèmes sans suggestions (avec bouton)
+            allIssues = issues;  // Sauvegarder globalement
+            issues.forEach((issue, index) => {
+                container.innerHTML += renderIssueWithButton(issue, index);
+            });
+        }
+        
+        async function generateSuggestionForIssue(issueIndex) {
+            const issue = allIssues[issueIndex];  // Récupérer depuis le tableau global
+            const button = document.getElementById(`btn-${issueIndex}`);
+            const loadingDiv = document.getElementById(`loading-${issueIndex}`);
+            const resultDiv = document.getElementById(`result-${issueIndex}`);
+            
+            // Masquer le bouton, afficher le loading
+            button.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const suggestion = await getSuggestion(issue);
+                
+                // Masquer le loading, afficher le résultat
+                loadingDiv.style.display = 'none';
+                resultDiv.innerHTML = renderSuggestionContent(suggestion);
+                resultDiv.style.display = 'block';
+            } catch (error) {
+                console.error('Erreur complète:', error);
+                loadingDiv.style.display = 'none';
+                resultDiv.innerHTML = `
+                    <div class="alert alert-error">
+                        <strong>❌ Erreur lors de la génération</strong><br>
+                        ${escapeHtml(error.message || 'Erreur inconnue')}<br>
+                        <small style="color: #94a3b8; margin-top: 10px; display: block;">
+                            Vérifiez que l'IA est configurée (OPENAI_API_KEY, ANTHROPIC_API_KEY ou Ollama)
+                        </small>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+                button.style.display = 'block'; // Réafficher le bouton pour réessayer
+            }
+        }
+        
+        function renderIssueWithButton(issue, index) {
+            const isCircular = issue.category === 'circular_dependency';
+            const icon = isCircular ? '🔄' : '🔒';
+            
+            // Debug: afficher l'issue dans la console
+            console.log(`Issue ${index}:`, issue);
+            
+            let headerInfo = '';
+            let codeSection = '';
+            
+            if (isCircular) {
+                headerInfo = `
+                    <div>
+                        <div class="vulnerability-title">${icon} ${escapeHtml(issue.type)}</div>
+                        <div style="color: var(--text-light); margin-top: 5px;">
+                            Cycle ${issue.cycle_number} : ${issue.modules.length} modules impliqués
+                        </div>
+                    </div>
+                `;
+                codeSection = `
+                    <div class="suggestion-section">
+                        <h3>🔄 Chemin de la dépendance circulaire</h3>
+                        <pre class="code-block">${escapeHtml(issue.cycle_path)}</pre>
+                    </div>
+                `;
+            } else {
+                headerInfo = `
+                    <div>
+                        <div class="vulnerability-title">${icon} ${escapeHtml(issue.type)}</div>
+                        <div style="color: var(--text-light); margin-top: 5px;">
+                            ${escapeHtml(issue.module)} : ligne ${issue.line}
+                        </div>
+                    </div>
+                `;
+                // Vérifier si le code existe
+                const codeContent = issue.code && issue.code.trim() 
+                    ? escapeHtml(issue.code) 
+                    : `<span style="color: #94a3b8; font-style: italic;">Code non disponible (module: ${escapeHtml(issue.module)}, ligne: ${issue.line})</span>`;
+                
+                codeSection = `
+                    <div class="suggestion-section">
+                        <h3>❌ Code problématique</h3>
+                        <pre class="code-block">${codeContent}</pre>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="suggestion-card">
+                    <div class="vulnerability-header">
+                        ${headerInfo}
+                        <span class="severity-badge severity-${escapeHtml(issue.severity)}">
+                            ${escapeHtml(issue.severity)}
+                        </span>
+                    </div>
+
+                    <div class="suggestion-section">
+                        <h3>📋 Description</h3>
+                        <p>${escapeHtml(issue.description)}</p>
+                    </div>
+
+                    ${codeSection}
+                    
+                    <div style="margin-top: 20px;">
+                        <button id="btn-${index}" 
+                                class="btn btn-primary btn-lg" 
+                                onclick="generateSuggestionForIssue(${index})">
+                            🤖 Générer suggestion IA
+                        </button>
+                        <div id="loading-${index}" style="display: none; text-align: center; padding: 20px;">
+                            <div class="spinner"></div>
+                            <p style="color: var(--text-light); margin-top: 10px;">Génération en cours...</p>
+                        </div>
+                        <div id="result-${index}" style="display: none;"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderSuggestionContent(suggestion) {
+            const fixCodeId = `fix-code-${suggestionCounter++}`;
+            const fixCodeHtml = suggestion.fix_code 
+                ? `<div class="suggestion-section">
+                        <h3>✅ Code corrigé</h3>
+                        <pre class="code-block" id="${fixCodeId}">${escapeHtml(suggestion.fix_code)}</pre>
+                        <button class="copy-btn" onclick="copyCode('${fixCodeId}')">
+                            📋 Copier le code
+                        </button>
+                    </div>`
+                : '';
+            
+            const stepsHtml = suggestion.steps && suggestion.steps.length > 0
+                ? `<div class="suggestion-section">
+                        <h3>🔧 Étapes de correction</h3>
+                        <ol class="steps-list">
+                            ${suggestion.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
+                        </ol>
+                    </div>`
+                : '';
+
+            return `
+                <div class="suggestion-section" style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                    <h3>💡 Suggestion IA</h3>
+                    <p>${escapeHtml(suggestion.explanation)}</p>
+                </div>
+                ${fixCodeHtml}
+                ${stepsHtml}
+            `;
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.getElementById('themeToggle');
+            
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                button.innerHTML = '☀️ Mode Clair';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                button.innerHTML = '🌙 Mode Sombre';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Charger le thème sauvegardé
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const button = document.getElementById('themeToggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+                button.innerHTML = '☀️ Mode Clair';
+            }
+
+            // Générer les suggestions au chargement
+            generateSuggestions();
+        });
+    </script>
+</body>
+</html>

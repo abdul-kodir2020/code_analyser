@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # Service Web UI - Interface web principale
+  web-ui:
+    build:
+      context: .
+      dockerfile: web_ui/Dockerfile
+    container_name: code-analyzer-web
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persister la base de données SQLite
+      - ./web_ui/data:/app/web_ui/data
+      # Persister les analyses générées
+      - ./web_ui/analyses:/app/web_ui/analyses
+      # Persister les projets clonés
+      - ./input_data:/app/input_data
+    environment:
+      # Configuration Flask
+      - FLASK_ENV=production
+      
+      # Configuration IA (optionnel - décommentez selon vos besoins)
+      # - OPENAI_API_KEY=your_openai_key_here
+      # - ANTHROPIC_API_KEY=your_anthropic_key_here
+      
+      # Configuration Ollama (pointer vers le service ollama)
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
+      - OLLAMA_TIMEOUT=180
+    depends_on:
+      - ollama
+    networks:
+      - code-analyzer-network
+    restart: unless-stopped
+
+  # Service Ollama - IA locale (optionnel)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: code-analyzer-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      # Persister les modèles téléchargés
+      - ollama-data:/root/.ollama
+    networks:
+      - code-analyzer-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service pour précharger le modèle Ollama
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: code-analyzer-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./init-ollama.sh:/init-ollama.sh
+    networks:
+      - code-analyzer-network
+    entrypoint: ["/bin/bash", "/init-ollama.sh"]
+    restart: "no"
+
+  # Service CLI - Analyseur en ligne de commande (optionnel, pour jobs ponctuels)
+  analyzer-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: code-analyzer-cli
+    volumes:
+      # Partager les données avec le web UI
+      - ./input_data:/app/input_data
+      - ./output:/app/output
+    networks:
+      - code-analyzer-network
+    # Ne démarre pas automatiquement - utiliser docker-compose run analyzer-cli <repo-url>
+    profiles:
+      - cli
+
+volumes:
+  # Volume pour les modèles Ollama
+  ollama-data:
+    driver: local
+
+networks:
+  code-analyzer-network:
+    driver: bridge
