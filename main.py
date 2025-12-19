@@ -60,13 +60,22 @@ def main():
     print(f"   • Nœuds (modules) : {graph_info['nodes']}")
     print(f"   • Arêtes (dépendances) : {graph_info['edges']}")
     print(f"   • DAG (pas de cycles) : {graph_info['is_dag']}")
-    print(f"   • Cycles détectés : {graph_info['cycles']}")
     
-    if not graph_info['is_dag']:
+    cycles_count = graph_info['cycles']
+    if cycles_count == -1:
+        print(f"   • Cycles détectés : non calculé (graphe trop grand)")
+    else:
+        print(f"   • Cycles détectés : {cycles_count}")
+    
+    # Ne montrer les détails des cycles que pour les petits graphes
+    if not graph_info['is_dag'] and graph_info['nodes'] <= 100:
         cycles = graph_builder.detect_cycles()
-        print(f"\nALERTE : Dépendances circulaires détectées !")
-        for i, cycle in enumerate(cycles[:3], 1):
-            print(f"   Cycle {i}: {' → '.join(cycle)} → {cycle[0]}")
+        if cycles:
+            print(f"\nALERTE : Dépendances circulaires détectées !")
+            for i, cycle in enumerate(cycles[:3], 1):
+                print(f"   Cycle {i}: {' → '.join(cycle)} → {cycle[0]}")
+    elif not graph_info['is_dag']:
+        print(f"\nALERTE : Dépendances circulaires présentes (détails non affichés - graphe trop grand)")
     print()
     
     # === ANALYSE DE SÉCURITÉ ===

@@ -75,14 +75,22 @@ class GraphBuilder:
         
         return self.graph
     
-    def detect_cycles(self) -> list:
+    def detect_cycles(self, max_nodes=100) -> list:
         """
         Détecte les dépendances circulaires
+        ATTENTION: Désactivé pour les gros graphes (>100 nœuds) car trop lent
+        
+        Args:
+            max_nodes: Limite de nœuds au-delà de laquelle on désactive
         
         Returns:
             Liste des cycles détectés
         """
         try:
+            # Désactiver pour les gros graphes
+            if self.graph.number_of_nodes() > max_nodes:
+                return []
+            
             cycles = list(nx.simple_cycles(self.graph))
             return cycles
         except:
@@ -95,9 +103,18 @@ class GraphBuilder:
         Returns:
             Dictionnaire avec les statistiques du graphe
         """
+        num_nodes = self.graph.number_of_nodes()
+        is_dag = nx.is_directed_acyclic_graph(self.graph)
+        
+        # Ne détecter les cycles que pour les petits graphes
+        if num_nodes <= 100 and not is_dag:
+            cycles_count = len(self.detect_cycles())
+        else:
+            cycles_count = 0 if is_dag else -1  # -1 = non calculé
+        
         return {
-            "nodes": self.graph.number_of_nodes(),
+            "nodes": num_nodes,
             "edges": self.graph.number_of_edges(),
-            "is_dag": nx.is_directed_acyclic_graph(self.graph),
-            "cycles": len(self.detect_cycles())
+            "is_dag": is_dag,
+            "cycles": cycles_count
         }

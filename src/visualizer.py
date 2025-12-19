@@ -274,8 +274,8 @@ class GraphVisualizer:
                 border_color = '#4444ff'
             
             # Info bulle simplifiée avec 2 métriques
-            title = f"""<div style='font-family: Arial; font-size: 13px; line-height: 1.8;'>
-<div style='font-weight: bold; margin-bottom: 8px; font-size: 14px;'>{node}</div>
+            title = f"""<div>
+<div>{node}</div>
 <div><b>Centralité:</b> {centrality:.3f}</div>
 <div><b>Dépendants:</b> {in_deg}</div>
 </div>"""

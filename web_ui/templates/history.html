@@ -13,6 +13,7 @@
             <div class="nav-links">
                 <a href="/">Nouvelle Analyse</a>
                 <a href="/history" class="active">Historique</a>
+                <a href="/compare">Comparer</a>
             </div>
         </div>
     </nav>
@@ -60,11 +61,11 @@
                             <td>{{ analysis.total_dependencies or '-' }}</td>
                             <td class="actions">
                                 {% if analysis.status == 'completed' %}
-                                    <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-primary">Voir</a>
+                                    <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-primary" title="Voir l'analyse">👁️</a>
                                 {% elif analysis.status == 'running' %}
-                                    <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-info">Suivre</a>
+                                    <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-info" title="Suivre l'analyse">👁️</a>
                                 {% endif %}
-                                <button data-analysis-id="{{ analysis.id }}" class="btn btn-sm btn-danger btn-delete">Supprimer</button>
+                                <button data-analysis-id="{{ analysis.id }}" class="btn btn-sm btn-danger btn-delete" title="Supprimer">🗑️</button>
                             </td>
                         </tr>
                         {% endfor %}

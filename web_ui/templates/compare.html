@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparer des Analyses - Code Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .comparison-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .selector-box {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            border: 2px solid var(--border);
+        }
+
+        .selector-box h3 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+
+        .analysis-select {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            margin-bottom: 15px;
+        }
+
+        .analysis-info {
+            padding: 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .analysis-info.visible {
+            display: block;
+        }
+
+        .compare-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .compare-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .compare-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            display: none;
+        }
+
+        .results-container.visible {
+            display: block;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid var(--border);
+        }
+
+        .summary-card h4 {
+            margin: 0 0 10px 0;
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        .delta {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .delta.positive {
+            color: #22c55e;
+        }
+
+        .delta.negative {
+            color: #ef4444;
+        }
+
+        .delta.neutral {
+            color: var(--text-light);
+        }
+
+        .trend-label {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .trend-improvement {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .trend-regression {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .trend-stable {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .recommendation {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid;
+        }
+
+        .recommendation.success {
+            background: #dcfce7;
+            border-color: #22c55e;
+            color: #15803d;
+        }
+
+        .recommendation.warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .recommendation.critical {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #b91c1c;
+        }
+
+        .recommendation.info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .comparison-table th {
+            background: rgba(102, 126, 234, 0.1);
+            font-weight: 600;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .badge-error {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(102, 126, 234, 0.3);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">Code Analyzer</h1>
+            <div class="nav-links">
+                <a href="/">Nouvelle Analyse</a>
+                <a href="/history">Historique</a>
+                <a href="/compare" class="active">Comparer</a>
+            </div>
+        </div>
+    </nav>
+    
+    <button id="themeToggle" onclick="toggleTheme()">🌙 Mode Sombre</button>
+
+    <main class="container main-content">
+        <div class="hero">
+            <h2>Comparer deux Analyses</h2>
+            <p>Détectez les régressions, améliorations et changements entre deux versions</p>
+        </div>
+
+        <div class="card">
+            <div class="comparison-selector">
+                <div class="selector-box">
+                    <h3>📊 Analyse Ancienne (Baseline)</h3>
+                    <select id="analysis1" class="analysis-select">
+                        <option value="">Sélectionner une analyse...</option>
+                        {% for analysis in analyses %}
+                        <option value="{{ analysis['id'] }}" 
+                                data-name="{{ analysis['project_name'] }}"
+                                data-date="{{ analysis['created_at'] }}"
+                                data-modules="{{ analysis['total_modules'] }}"
+                                data-vulns="{{ analysis['vulnerabilities_critical'] }}">
+                            {{ analysis['project_name'] }} - {{ analysis['created_at'] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div id="info1" class="analysis-info"></div>
+                </div>
+
+                <div class="selector-box">
+                    <h3>📊 Analyse Nouvelle (Comparaison)</h3>
+                    <select id="analysis2" class="analysis-select">
+                        <option value="">Sélectionner une analyse...</option>
+                        {% for analysis in analyses %}
+                        <option value="{{ analysis['id'] }}"
+                                data-name="{{ analysis['project_name'] }}"
+                                data-date="{{ analysis['created_at'] }}"
+                                data-modules="{{ analysis['total_modules'] }}"
+                                data-vulns="{{ analysis['vulnerabilities_critical'] }}">
+                            {{ analysis['project_name'] }} - {{ analysis['created_at'] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div id="info2" class="analysis-info"></div>
+                </div>
+            </div>
+
+            <button id="compareBtn" class="compare-btn" disabled>
+                Comparer les Analyses
+            </button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p style="margin-top: 20px; color: var(--text-light);">Comparaison en cours...</p>
+        </div>
+
+        <div id="results" class="results-container">
+            <!-- Résumé -->
+            <div class="card">
+                <h3>📊 Résumé de la Comparaison</h3>
+                <div id="summaryGrid" class="summary-grid"></div>
+            </div>
+
+            <!-- Recommandations -->
+            <div class="card">
+                <h3>💡 Recommandations</h3>
+                <div id="recommendations"></div>
+            </div>
+
+            <!-- Détails de sécurité -->
+            <div class="card">
+                <h3>🔒 Changements de Sécurité</h3>
+                <div id="securityDetails"></div>
+            </div>
+
+            <!-- Structure -->
+            <div class="card">
+                <h3>📦 Changements de Structure</h3>
+                <div id="structureDetails"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const analysis1Select = document.getElementById('analysis1');
+        const analysis2Select = document.getElementById('analysis2');
+        const compareBtn = document.getElementById('compareBtn');
+        const info1 = document.getElementById('info1');
+        const info2 = document.getElementById('info2');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+
+        // Formater la date en heure locale
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('fr-FR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Afficher les infos de l'analyse sélectionnée
+        function showAnalysisInfo(selectElement, infoDiv) {
+            const option = selectElement.options[selectElement.selectedIndex];
+            if (option.value) {
+                infoDiv.innerHTML = `
+                    <strong>${option.dataset.name}</strong><br>
+                    📅 ${formatDate(option.dataset.date)}<br>
+                    📦 ${option.dataset.modules} modules<br>
+                    🔒 ${option.dataset.vulns} vulnérabilités critiques
+                `;
+                infoDiv.classList.add('visible');
+            } else {
+                infoDiv.classList.remove('visible');
+            }
+        }
+
+        analysis1Select.addEventListener('change', () => {
+            showAnalysisInfo(analysis1Select, info1);
+            checkCanCompare();
+        });
+
+        analysis2Select.addEventListener('change', () => {
+            showAnalysisInfo(analysis2Select, info2);
+            checkCanCompare();
+        });
+
+        function checkCanCompare() {
+            const id1 = analysis1Select.value;
+            const id2 = analysis2Select.value;
+            compareBtn.disabled = !id1 || !id2 || id1 === id2;
+        }
+
+        compareBtn.addEventListener('click', async () => {
+            const id1 = analysis1Select.value;
+            const id2 = analysis2Select.value;
+
+            loading.style.display = 'block';
+            results.classList.remove('visible');
+
+            try {
+                const response = await fetch(`/api/compare?analysis1=${id1}&analysis2=${id2}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data.comparison, data.recommendations);
+                } else {
+                    alert('Erreur : ' + data.error);
+                }
+            } catch (error) {
+                alert('Erreur lors de la comparaison : ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        function displayResults(comparison, recommendations) {
+            // Afficher le résumé
+            const summaryGrid = document.getElementById('summaryGrid');
+            summaryGrid.innerHTML = `
+                ${createSummaryCard('Modules', comparison.summary.modules)}
+                ${createSummaryCard('Dépendances', comparison.summary.dependencies)}
+                ${createSummaryCard('Cycles', comparison.summary.cycles)}
+                ${createSummaryCard('Vulnérabilités', comparison.summary.vulnerabilities)}
+            `;
+
+            // Afficher les recommandations
+            const recDiv = document.getElementById('recommendations');
+            if (recommendations.length === 0) {
+                recDiv.innerHTML = '<p style="color: var(--text-light);">Aucune recommandation particulière.</p>';
+            } else {
+                recDiv.innerHTML = recommendations.map(rec => 
+                    `<div class="recommendation ${rec.type}">${rec.message}</div>`
+                ).join('');
+            }
+
+            // Afficher les détails de sécurité
+            displaySecurityDetails(comparison.security);
+
+            // Afficher les détails de structure
+            displayStructureDetails(comparison.structure);
+
+            results.classList.add('visible');
+        }
+
+        function createSummaryCard(title, data) {
+            const delta = data.delta;
+            const deltaClass = delta > 0 ? 'positive' : (delta < 0 ? 'negative' : 'neutral');
+            const deltaSign = delta > 0 ? '+' : '';
+            
+            let trendLabel = '';
+            if (data.trend) {
+                const trendClass = data.trend === 'improvement' ? 'trend-improvement' : 
+                                  (data.trend === 'regression' ? 'trend-regression' : 'trend-stable');
+                const trendText = data.trend === 'improvement' ? '📈 Amélioration' :
+                                 (data.trend === 'regression' ? '📉 Régression' : '➡️ Stable');
+                trendLabel = `<span class="${trendClass} trend-label">${trendText}</span>`;
+            }
+
+            return `
+                <div class="summary-card">
+                    <h4>${title}</h4>
+                    <div style="color: var(--text-light); font-size: 13px;">
+                        ${data.old} → ${data.new}
+                    </div>
+                    <div class="delta ${deltaClass}">
+                        ${deltaSign}${delta}
+                    </div>
+                    ${trendLabel}
+                </div>
+            `;
+        }
+
+        function displaySecurityDetails(security) {
+            const div = document.getElementById('securityDetails');
+            
+            let html = '';
+
+            if (security.total_fixed > 0) {
+                html += `
+                    <h4 style="color: #22c55e;">✅ Vulnérabilités Corrigées (${security.total_fixed})</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Module</th>
+                                <th>Ligne</th>
+                                <th>Sévérité</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${security.fixed.slice(0, 10).map(v => `
+                                <tr>
+                                    <td>${v.type || 'N/A'}</td>
+                                    <td>${v.module || 'N/A'}</td>
+                                    <td>${v.line || 'N/A'}</td>
+                                    <td><span class="badge badge-success">${v.severity || 'N/A'}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${security.total_fixed > 10 ? `<p style="color: var(--text-light); margin-top: 10px;">... et ${security.total_fixed - 10} autre(s)</p>` : ''}
+                `;
+            }
+
+            if (security.total_new > 0) {
+                html += `
+                    <h4 style="color: #ef4444; margin-top: 20px;">❌ Nouvelles Vulnérabilités (${security.total_new})</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Module</th>
+                                <th>Ligne</th>
+                                <th>Sévérité</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${security.new.slice(0, 10).map(v => `
+                                <tr>
+                                    <td>${v.type || 'N/A'}</td>
+                                    <td>${v.module || 'N/A'}</td>
+                                    <td>${v.line || 'N/A'}</td>
+                                    <td><span class="badge badge-error">${v.severity || 'N/A'}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${security.total_new > 10 ? `<p style="color: var(--text-light); margin-top: 10px;">... et ${security.total_new - 10} autre(s)</p>` : ''}
+                `;
+            }
+
+            if (security.total_fixed === 0 && security.total_new === 0) {
+                html = '<p style="color: var(--text-light);">Aucun changement de sécurité détecté.</p>';
+            }
+
+            div.innerHTML = html;
+        }
+
+        function displayStructureDetails(structure) {
+            const div = document.getElementById('structureDetails');
+            
+            let html = '';
+
+            if (structure.total_added > 0) {
+                html += `
+                    <h4 style="color: #22c55e;">✅ Modules Ajoutés (${structure.total_added})</h4>
+                    <p>${structure.modules_added.slice(0, 10).join(', ')}</p>
+                    ${structure.total_added > 10 ? `<p style="color: var(--text-light);">... et ${structure.total_added - 10} autre(s)</p>` : ''}
+                `;
+            }
+
+            if (structure.total_removed > 0) {
+                html += `
+                    <h4 style="color: #ef4444; margin-top: 20px;">❌ Modules Supprimés (${structure.total_removed})</h4>
+                    <p>${structure.modules_removed.slice(0, 10).join(', ')}</p>
+                    ${structure.total_removed > 10 ? `<p style="color: var(--text-light);">... et ${structure.total_removed - 10} autre(s)</p>` : ''}
+                `;
+            }
+
+            if (structure.total_added === 0 && structure.total_removed === 0) {
+                html = '<p style="color: var(--text-light);">Aucun changement structurel détecté.</p>';
+            }
+
+            div.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

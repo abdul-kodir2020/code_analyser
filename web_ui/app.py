@@ -5,6 +5,7 @@ import subprocess
 import json
 import os
 import sys
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -129,6 +130,49 @@ def run_analysis(analysis_id, repo_url):
             # Parser les résultats (basique - on pourrait améliorer)
             modules = 0
             deps = 0
+            vuln_critical = 0
+            vuln_high = 0
+            vuln_medium = 0
+            attack_points = 0
+            
+            # Lire le rapport HTML pour extraire les stats de sécurité
+            if report_path.exists():
+                try:
+                    with open(report_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Extraire les vulnérabilités depuis le JSON
+                    match = re.search(r'<script id="ai-issues" type="application/json">\s*(.*?)\s*</script>', content, re.DOTALL)
+                    if match:
+                        issues_json = match.group(1).strip()
+                        if issues_json:
+                            vulnerabilities = json.loads(issues_json)
+                            print(f"📊 Extraction: {len(vulnerabilities)} vulnérabilités trouvées dans le rapport")
+                            for vuln in vulnerabilities:
+                                severity = vuln.get('severity', '')
+                                if severity == 'CRITIQUE':
+                                    vuln_critical += 1
+                                elif severity == 'ÉLEVÉ':
+                                    vuln_high += 1
+                                elif severity == 'MOYEN':
+                                    vuln_medium += 1
+                            print(f"📊 Vulnérabilités par sévérité: {vuln_critical} critiques, {vuln_high} élevées, {vuln_medium} moyennes")
+                        else:
+                            print(f"⚠️  Script ai-issues trouvé mais vide")
+                    else:
+                        print(f"⚠️  Script ai-issues non trouvé dans le rapport")
+                    
+                    # Extraire les points d'attaque (optionnel - pattern basique)
+                    attack_match = re.search(r'Points d\'entrée.*?(\d+)', content, re.IGNORECASE)
+                    if attack_match:
+                        attack_points = int(attack_match.group(1))
+                        
+                except Exception as e:
+                    print(f"⚠️  Erreur extraction stats: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"⚠️  Rapport introuvable: {report_path}")
             
             # Extraction basique des métriques depuis stdout
             for line in stdout.split('\n'):
@@ -145,9 +189,12 @@ def run_analysis(analysis_id, repo_url):
             
             c.execute('''
                 UPDATE analyses 
-                SET status = ?, completed_at = ?, total_modules = ?, total_dependencies = ?, report_path = ?
+                SET status = ?, completed_at = ?, total_modules = ?, total_dependencies = ?, report_path = ?,
+                    vulnerabilities_critical = ?, vulnerabilities_high = ?, vulnerabilities_medium = ?,
+                    attack_surface_points = ?
                 WHERE id = ?
-            ''', ('completed', datetime.now(), modules, deps, str(report_path), analysis_id))
+            ''', ('completed', datetime.now(), modules, deps, str(report_path), 
+                  vuln_critical, vuln_high, vuln_medium, attack_points, analysis_id))
             print(f"✅ Analyse {analysis_id} terminée avec succès")
         else:
             error_msg = stderr[:500] if stderr else "Erreur inconnue"
@@ -252,7 +299,6 @@ def get_analysis_issues(analysis_id):
             content = f.read()
         
         # Extraire le script JSON (si présent dans le rapport)
-        import re
         # Chercher le script ai-issues dans le HTML
         match = re.search(r'<script id="ai-issues" type="application/json">\s*(.*?)\s*</script>', content, re.DOTALL)
         
@@ -267,6 +313,143 @@ def get_analysis_issues(analysis_id):
     except Exception as e:
         print(f"Erreur lors du chargement des problèmes: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/compare')
+def compare_page():
+    """Page de comparaison entre deux analyses"""
+    conn = get_db()
+    c = conn.cursor()
+    # Récupérer toutes les analyses complétées pour la sélection
+    analyses = c.execute('''
+        SELECT id, project_name, repo_url, created_at, total_modules, vulnerabilities_critical
+        FROM analyses 
+        WHERE status = 'completed'
+        ORDER BY created_at DESC
+    ''').fetchall()
+    conn.close()
+    
+    return render_template('compare.html', analyses=analyses)
+
+@app.route('/api/compare')
+def api_compare():
+    """API pour comparer deux analyses"""
+    analysis1_id = request.args.get('analysis1', type=int)
+    analysis2_id = request.args.get('analysis2', type=int)
+    
+    if not analysis1_id or not analysis2_id:
+        return jsonify({'error': 'Deux IDs d\'analyses requis'}), 400
+    
+    if analysis1_id == analysis2_id:
+        return jsonify({'error': 'Les deux analyses doivent être différentes'}), 400
+    
+    try:
+        # Charger les données des deux analyses
+        analysis1_data = _load_analysis_data(analysis1_id)
+        analysis2_data = _load_analysis_data(analysis2_id)
+        
+        if not analysis1_data or not analysis2_data:
+            return jsonify({'error': 'Analyse introuvable'}), 404
+        
+        # Comparer
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from src.comparer import AnalysisComparer
+        
+        comparer = AnalysisComparer(analysis1_data, analysis2_data)
+        comparison = comparer.compare()
+        recommendations = comparer.get_recommendations()
+        
+        return jsonify({
+            'success': True,
+            'comparison': comparison,
+            'recommendations': recommendations
+        })
+    
+    except Exception as e:
+        print(f"Erreur lors de la comparaison: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+def _load_analysis_data(analysis_id):
+    """Charge les données d'une analyse depuis la DB et le rapport"""
+    conn = get_db()
+    c = conn.cursor()
+    analysis = c.execute('SELECT * FROM analyses WHERE id = ?', (analysis_id,)).fetchone()
+    conn.close()
+    
+    if not analysis or analysis['status'] != 'completed':
+        print(f"Analyse {analysis_id} introuvable ou non complétée")
+        return None
+    
+    # Charger les données depuis le rapport HTML
+    report_path = Path(analysis['report_path'])
+    if not report_path.exists():
+        print(f"Rapport introuvable : {report_path}")
+        return None
+    
+    try:
+        with open(report_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Extraire les vulnérabilités depuis le JSON
+        vulnerabilities = []
+        match = re.search(r'<script id="ai-issues" type="application/json">\s*(.*?)\s*</script>', content, re.DOTALL)
+        if match:
+            issues_json = match.group(1).strip()
+            if issues_json:
+                try:
+                    vulnerabilities = json.loads(issues_json)
+                    print(f"Analyse {analysis_id} : {len(vulnerabilities)} vulnérabilités chargées depuis JSON")
+                except json.JSONDecodeError as e:
+                    print(f"Erreur JSON pour analyse {analysis_id}: {e}")
+        else:
+            print(f"Pas de script ai-issues trouvé dans le rapport {analysis_id}")
+        
+        # Calculer le total de vulnérabilités
+        total_vulns = (analysis['vulnerabilities_critical'] or 0) + \
+                     (analysis['vulnerabilities_high'] or 0) + \
+                     (analysis['vulnerabilities_medium'] or 0)
+        
+        print(f"Analyse {analysis_id} - Total vulns DB: {total_vulns}, JSON: {len(vulnerabilities)}")
+        
+        # Extraire les modules (depuis les nœuds du graphe si disponible)
+        modules = []
+        # TODO: Extraire depuis le graphe si nécessaire
+        
+        data = {
+            'id': analysis['id'],
+            'project_name': analysis['project_name'],
+            'created_at': analysis['created_at'],
+            'graph_info': {
+                'nodes': analysis['total_modules'] or 0,
+                'edges': analysis['total_dependencies'] or 0,
+                'cycles': 0  # TODO: extraire depuis le rapport
+            },
+            'security_summary': {
+                'total': total_vulns,
+                'by_severity': {
+                    'CRITIQUE': analysis['vulnerabilities_critical'] or 0,
+                    'ÉLEVÉ': analysis['vulnerabilities_high'] or 0,
+                    'MOYEN': analysis['vulnerabilities_medium'] or 0
+                }
+            },
+            'vulnerabilities': vulnerabilities,
+            'modules': modules,
+            'top_modules': {},
+            'attack_surface_summary': {
+                'total_entry_points': analysis['attack_surface_points'] or 0,
+                'critical_paths': 0  # TODO: extraire si disponible
+            }
+        }
+        
+        print(f"Données chargées pour analyse {analysis_id}: {len(vulnerabilities)} vulns")
+        return data
+    
+    except Exception as e:
+        print(f"Erreur lors du chargement de l'analyse {analysis_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 @app.route('/api/start-analysis', methods=['POST'])
 def start_analysis():
